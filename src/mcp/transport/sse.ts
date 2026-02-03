@@ -60,16 +60,16 @@ function setCorsHeaders(res: ServerResponse, origin: string): void {
  * @param mcpServer - MCP 서버 인스턴스
  * @param options - 서버 옵션
  */
-export async function startSSEServer(
+export function startSSEServer(
   mcpServer: McpServer,
   options: SSEServerOptions = {}
-): Promise<void> {
+): void {
   const { port = 3001, authToken, corsOrigin = '*' } = options;
 
   // SSE 전송 인스턴스 저장소
   let sseTransport: SSEServerTransport | null = null;
 
-  const server = createServer(async (req, res) => {
+  const server = createServer((req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
 
     // CORS 헤더 설정
@@ -110,7 +110,9 @@ export async function startSSEServer(
       });
 
       // MCP 서버와 연결
-      await mcpServer.connect(sseTransport);
+      mcpServer.connect(sseTransport).catch((error) => {
+        console.error('[SSE] Connection error:', error);
+      });
       return;
     }
 
@@ -124,21 +126,18 @@ export async function startSSEServer(
 
       // 요청 본문 읽기
       let body = '';
-      req.on('data', (chunk) => {
+      req.on('data', (chunk: Buffer) => {
         body += chunk.toString();
       });
 
-      req.on('end', async () => {
-        try {
-          // SSE 전송에 메시지 전달
-          await sseTransport!.handlePostMessage(req, res, body);
-        } catch (error) {
+      req.on('end', () => {
+        sseTransport!.handlePostMessage(req, res, body).catch((error) => {
           console.error('[SSE] Message handling error:', error);
           if (!res.headersSent) {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Internal server error' }));
           }
-        }
+        });
       });
       return;
     }

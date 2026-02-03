@@ -9,6 +9,8 @@
 - **Security**: SQL 인젝션 방지, 프롬프트 인젝션 감지, 민감 정보 마스킹
 - **Output**: Table, JSON, CSV 다양한 출력 형식 지원
 - **CLI**: 간단한 명령어로 SQL 생성 및 실행
+- **MCP Server**: Model Context Protocol 지원 (stdio/SSE)
+- **Docker**: 컨테이너 배포 지원
 
 ## Installation
 
@@ -169,6 +171,99 @@ $ npm start -- query "DROP TABLE users" --execute
 - IP 주소 마스킹
 - 비밀번호 마스킹
 
+## MCP Server
+
+NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 지원하여 AI 에이전트에게 NL2SQL 기능을 제공합니다.
+
+### MCP 도구
+
+| 도구 | 설명 |
+|------|------|
+| `db_test_connection` | 환경변수 DB 연결 테스트 (파라미터 없음) |
+| `db_connect` | 자격증명으로 DB 연결 테스트 |
+| `nl2sql_schema` | 스키마 조회 (json/prompt/summary 형식) |
+| `nl2sql_query` | 자연어 → SQL 변환 및 선택적 실행 |
+
+### stdio 모드 (Claude Desktop 등)
+
+```bash
+npm run start:mcp
+```
+
+Claude Desktop 설정 (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "nl2sql": {
+      "command": "node",
+      "args": ["/path/to/nl2sql_ts/dist/mcp/index.js"],
+      "env": {
+        "DB_TYPE": "postgresql",
+        "DB_HOST": "localhost",
+        "DB_USER": "postgres",
+        "DB_PASSWORD": "password",
+        "DB_NAME": "mydb",
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+### SSE 모드 (HTTP 서버)
+
+```bash
+npm run start:mcp:sse
+```
+
+환경변수:
+- `MCP_TRANSPORT=sse`: SSE 모드 활성화
+- `MCP_PORT=3001`: 서버 포트 (기본: 3001)
+- `MCP_AUTH_TOKEN`: Bearer 인증 토큰 (선택)
+
+엔드포인트:
+- `GET /health`: 헬스체크
+- `GET /sse`: SSE 연결
+- `POST /message`: 메시지 수신
+
+## Docker
+
+### 빌드 및 실행
+
+```bash
+# 이미지 빌드
+npm run docker:build
+
+# Docker Compose로 실행
+npm run docker:run
+
+# 로그 확인
+npm run docker:logs
+
+# 중지
+npm run docker:stop
+```
+
+### 직접 실행
+
+```bash
+docker run -d \
+  -p 3001:3001 \
+  -e MCP_TRANSPORT=sse \
+  -e MCP_AUTH_TOKEN=your-secure-token \
+  -e DB_HOST=host.docker.internal \
+  -e DB_USER=postgres \
+  -e DB_PASSWORD=password \
+  -e DB_NAME=mydb \
+  -e OPENAI_API_KEY=sk-xxx \
+  nl2sql-mcp
+```
+
+### Docker에서 로컬 DB 접근
+
+- Mac/Windows: `DB_HOST=host.docker.internal` 사용
+- Linux: 호스트 IP 또는 `--network host` 사용
+
 ## Development
 
 ```bash
@@ -204,6 +299,16 @@ nl2sql_ts/
 │   │   │   └── schema.ts           # Schema command
 │   │   └── formatters/
 │   │       └── result-formatter.ts # Output formatters (table/json/csv)
+│   ├── mcp/
+│   │   ├── index.ts                # MCP server entry point
+│   │   ├── server.ts               # MCP server setup & tools
+│   │   ├── tools/
+│   │   │   ├── db-test.ts          # db_test_connection tool
+│   │   │   ├── db-connect.ts       # db_connect tool
+│   │   │   ├── nl2sql-schema.ts    # nl2sql_schema tool
+│   │   │   └── nl2sql-query.ts     # nl2sql_query tool
+│   │   └── transport/
+│   │       └── sse.ts              # SSE transport + auth
 │   ├── config/
 │   │   └── index.ts                # Configuration loader (env + file)
 │   ├── core/
@@ -240,6 +345,9 @@ nl2sql_ts/
 ├── .env.example
 ├── .eslintrc.json
 ├── .prettierrc.json
+├── .dockerignore
+├── Dockerfile                      # Multi-stage Docker build
+├── docker-compose.yml              # Docker Compose config
 ├── jest.config.js
 ├── package.json
 ├── tsconfig.json
@@ -253,12 +361,14 @@ nl2sql_ts/
 | Language | TypeScript 5.x |
 | Runtime | Node.js (ESM) |
 | AI | OpenAI SDK, Anthropic SDK |
+| MCP | @modelcontextprotocol/sdk |
 | Database | Knex.js, pg, mysql2, oracledb |
 | CLI | Commander.js, Inquirer.js |
 | UI | Chalk, Ora |
 | Validation | Zod |
 | Testing | Jest, ts-jest |
 | Linting | ESLint, Prettier |
+| Container | Docker, Docker Compose |
 
 ## License
 

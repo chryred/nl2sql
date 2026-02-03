@@ -4,12 +4,19 @@
   "description": "Natural Language to SQL converter CLI tool",
   "main": "dist/index.js",
   "bin": {
-    "nl2sql": "./dist/index.js"
+    "nl2sql": "./dist/index.js",
+    "nl2sql-mcp": "./dist/mcp/index.js"
   },
   "scripts": {
     "build": "tsc && cp -r src/database/schemas dist/database/",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
+    "start:mcp": "tsx src/mcp/index.ts",
+    "start:mcp:sse": "MCP_TRANSPORT=sse tsx src/mcp/index.ts",
+    "docker:build": "docker build -t nl2sql-mcp .",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write src",

@@ -37,7 +37,7 @@ async function main(): Promise<void> {
 
   if (transport === 'sse') {
     console.log('[MCP] Starting NL2SQL MCP server in SSE mode');
-    await startSSEServer(server, { port, authToken });
+    startSSEServer(server, { port, authToken });
   } else {
     console.log('[MCP] Starting NL2SQL MCP server in stdio mode');
     const stdioTransport = new StdioServerTransport();

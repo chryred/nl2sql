@@ -9,7 +9,6 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
 
 import { dbTestConnection, dbTestInputSchema } from './tools/db-test.js';
 import { dbConnect, dbConnectInputSchema } from './tools/db-connect.js';
