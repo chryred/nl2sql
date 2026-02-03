@@ -1,15 +1,16 @@
 /**
- * SSE 전송 계층
+ * Streamable HTTP 전송 계층
  *
  * @description
- * HTTP 서버를 통한 Server-Sent Events (SSE) 전송을 구현합니다.
+ * HTTP 서버를 통한 Streamable HTTP 전송을 구현합니다.
  * Bearer 토큰 인증을 지원합니다.
  *
  * @module mcp/transport/sse
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { randomUUID } from 'crypto';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 /**
@@ -50,12 +51,13 @@ function authenticateRequest(req: IncomingMessage, authToken?: string): boolean 
  */
 function setCorsHeaders(res: ServerResponse, origin: string): void {
   res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id');
+  res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 }
 
 /**
- * SSE 서버를 시작합니다.
+ * Streamable HTTP 서버를 시작합니다.
  *
  * @param mcpServer - MCP 서버 인스턴스
  * @param options - 서버 옵션
@@ -66,10 +68,10 @@ export function startSSEServer(
 ): void {
   const { port = 3001, authToken, corsOrigin = '*' } = options;
 
-  // SSE 전송 인스턴스 저장소
-  let sseTransport: SSEServerTransport | null = null;
+  // Streamable HTTP 전송 인스턴스 저장소
+  const transports = new Map<string, StreamableHTTPServerTransport>();
 
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
 
     // CORS 헤더 설정
@@ -96,49 +98,55 @@ export function startSSEServer(
       return;
     }
 
-    // SSE 연결 엔드포인트
-    if (url.pathname === '/sse' && req.method === 'GET') {
-      console.log('[SSE] Client connected');
+    // MCP 엔드포인트 (Streamable HTTP)
+    if (url.pathname === '/mcp') {
+      try {
+        // 세션 ID 확인
+        const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
-      // 새 SSE 전송 인스턴스 생성
-      sseTransport = new SSEServerTransport('/message', res);
+        if (sessionId && transports.has(sessionId)) {
+          // 기존 세션 사용
+          const transport = transports.get(sessionId)!;
+          await transport.handleRequest(req, res);
+        } else if (req.method === 'POST') {
+          // 새 세션 생성 (초기화 요청)
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => randomUUID(),
+          });
 
-      // 연결 종료 시 처리
-      res.on('close', () => {
-        console.log('[SSE] Client disconnected');
-        sseTransport = null;
-      });
+          // 연결 종료 시 세션 정리
+          transport.onclose = () => {
+            const sid = transport.sessionId;
+            if (sid) {
+              console.log(`[MCP] Session closed: ${sid}`);
+              transports.delete(sid);
+            }
+          };
 
-      // MCP 서버와 연결
-      mcpServer.connect(sseTransport).catch((error) => {
-        console.error('[SSE] Connection error:', error);
-      });
-      return;
-    }
+          // MCP 서버와 연결
+          await mcpServer.connect(transport);
 
-    // 메시지 수신 엔드포인트
-    if (url.pathname === '/message' && req.method === 'POST') {
-      if (!sseTransport) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'No active SSE connection' }));
-        return;
-      }
+          // 요청 처리
+          await transport.handleRequest(req, res);
 
-      // 요청 본문 읽기
-      let body = '';
-      req.on('data', (chunk: Buffer) => {
-        body += chunk.toString();
-      });
-
-      req.on('end', () => {
-        sseTransport!.handlePostMessage(req, res, body).catch((error) => {
-          console.error('[SSE] Message handling error:', error);
-          if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Internal server error' }));
+          // 세션 저장
+          const newSessionId = transport.sessionId;
+          if (newSessionId) {
+            transports.set(newSessionId, transport);
+            console.log(`[MCP] New session: ${newSessionId}`);
           }
-        });
-      });
+        } else {
+          // GET 요청이지만 세션이 없는 경우
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Session ID required for GET requests' }));
+        }
+      } catch (error) {
+        console.error('[MCP] Request handling error:', error);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+      }
       return;
     }
 
@@ -148,30 +156,33 @@ export function startSSEServer(
   });
 
   server.listen(port, () => {
-    console.log(`[SSE] NL2SQL MCP server listening on port ${port}`);
-    console.log(`[SSE] Endpoints:`);
+    console.log(`[MCP] NL2SQL MCP server listening on port ${port}`);
+    console.log(`[MCP] Endpoints:`);
     console.log(`  - GET  /health  - Health check`);
-    console.log(`  - GET  /sse     - SSE connection`);
-    console.log(`  - POST /message - Message endpoint`);
+    console.log(`  - POST /mcp     - MCP endpoint (initialize session)`);
+    console.log(`  - GET  /mcp     - MCP endpoint (SSE stream, requires session)`);
     if (authToken) {
-      console.log(`[SSE] Authentication: Bearer token required`);
+      console.log(`[MCP] Authentication: Bearer token required`);
     }
   });
 
   // 프로세스 종료 시 서버 정리
-  process.on('SIGINT', () => {
-    console.log('\n[SSE] Shutting down server...');
-    server.close(() => {
-      console.log('[SSE] Server closed');
-      process.exit(0);
-    });
-  });
+  const cleanup = () => {
+    console.log('\n[MCP] Shutting down server...');
 
-  process.on('SIGTERM', () => {
-    console.log('\n[SSE] Shutting down server...');
+    // 모든 세션 종료
+    for (const [sessionId, transport] of transports) {
+      console.log(`[MCP] Closing session: ${sessionId}`);
+      transport.close().catch(console.error);
+    }
+    transports.clear();
+
     server.close(() => {
-      console.log('[SSE] Server closed');
+      console.log('[MCP] Server closed');
       process.exit(0);
     });
-  });
+  };
+
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 }

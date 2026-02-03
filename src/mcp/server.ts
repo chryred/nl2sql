@@ -27,10 +27,12 @@ export function createMcpServer(): McpServer {
   });
 
   // db_test_connection 도구 등록
-  server.tool(
+  server.registerTool(
     'db_test_connection',
-    'Test database connection using environment variables. No parameters required.',
-    dbTestInputSchema.shape,
+    {
+      description: 'Test database connection using environment variables. No parameters required.',
+      inputSchema: dbTestInputSchema,
+    },
     async () => {
       const result = await dbTestConnection();
       return {
@@ -45,10 +47,12 @@ export function createMcpServer(): McpServer {
   );
 
   // db_connect 도구 등록
-  server.tool(
+  server.registerTool(
     'db_connect',
-    'Test database connection with provided credentials.',
-    dbConnectInputSchema.shape,
+    {
+      description: 'Test database connection with provided credentials.',
+      inputSchema: dbConnectInputSchema,
+    },
     async (args) => {
       const input = dbConnectInputSchema.parse(args);
       const result = await dbConnect(input);
@@ -64,10 +68,12 @@ export function createMcpServer(): McpServer {
   );
 
   // nl2sql_schema 도구 등록
-  server.tool(
+  server.registerTool(
     'nl2sql_schema',
-    'Get database schema information. Supports json, prompt, and summary formats.',
-    nl2sqlSchemaInputSchema.shape,
+    {
+      description: 'Get database schema information. Supports json, prompt, and summary formats.',
+      inputSchema: nl2sqlSchemaInputSchema,
+    },
     async (args) => {
       const input = nl2sqlSchemaInputSchema.parse(args);
       const result = await nl2sqlSchema(input);
@@ -90,10 +96,12 @@ export function createMcpServer(): McpServer {
   );
 
   // nl2sql_query 도구 등록
-  server.tool(
+  server.registerTool(
     'nl2sql_query',
-    'Convert natural language to SQL and optionally execute it.',
-    nl2sqlQueryInputSchema.shape,
+    {
+      description: 'Convert natural language to SQL and optionally execute it.',
+      inputSchema: nl2sqlQueryInputSchema,
+    },
     async (args) => {
       const input = nl2sqlQueryInputSchema.parse(args);
       const result = await nl2sqlQuery(input);

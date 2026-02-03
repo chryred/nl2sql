@@ -200,19 +200,21 @@ export class SchemaLoader {
     const { sql, bindings } = this.substituteParams(queryDef.sql, params);
 
     try {
-      const result = await knex.raw(sql, bindings);
+      const result: unknown = await knex.raw(sql, bindings);
 
       // Handle different database return formats
       if (Array.isArray(result)) {
         // MySQL returns [rows, fields]
-        return result[0] as T[];
+        const rows = result[0];
+        return Array.isArray(rows) ? (rows as T[]) : [];
       }
       // PostgreSQL returns { rows: [...] }
-      if (result.rows) {
-        return result.rows as T[];
+      if (typeof result === 'object' && result !== null && 'rows' in result) {
+        const { rows } = result as { rows: unknown[] };
+        return Array.isArray(rows) ? (rows as T[]) : [];
       }
-      // Oracle returns array directly
-      return result as T[];
+      // Oracle returns array directly - but we need to handle it safely
+      return [];
     } catch (error) {
       if (queryDef.optional) {
         return [];

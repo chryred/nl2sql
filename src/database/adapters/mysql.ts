@@ -42,6 +42,10 @@ const loader = new SchemaLoader('mysql');
  * }
  */
 export async function extractMysqlSchema(knex: Knex): Promise<SchemaInfo> {
-  const dbName = knex.client.config.connection.database as string;
+  const connection = knex.client.config.connection as { database?: string } | undefined;
+  const dbName = connection?.database;
+  if (!dbName) {
+    throw new Error('Database name not configured in MySQL connection');
+  }
   return loader.extractSchema(knex, dbName);
 }

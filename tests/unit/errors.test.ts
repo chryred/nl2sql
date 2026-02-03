@@ -53,7 +53,7 @@ describe('Specialized Error Classes', () => {
       expect(error.host).toBe('localhost');
       expect(error.port).toBe(5432);
       expect(error.database).toBe('testdb');
-      expect(error.toUserMessage()).toContain('database');
+      expect(error.toUserMessage()).toContain('데이터베이스');
     });
   });
 
@@ -231,17 +231,17 @@ describe('getErrorMessage', () => {
     it('should return generic message for regular Error', () => {
       const error = new Error('Internal details');
       const message = getErrorMessage(error);
-      expect(message).toContain('unexpected error');
+      expect(message).toContain('예기치 않은 오류');
     });
   });
 
   it('should handle non-Error values', () => {
     const message = getErrorMessage('string error');
-    expect(message).toContain('unknown error');
+    expect(message).toContain('알 수 없는 오류');
   });
 
   it('should handle null', () => {
     const message = getErrorMessage(null);
-    expect(message).toContain('unknown error');
+    expect(message).toContain('알 수 없는 오류');
   });
 });

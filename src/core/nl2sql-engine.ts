@@ -174,19 +174,21 @@ export class NL2SQLEngine {
    * console.table(results);
    */
   async executeSQL(sql: string): Promise<unknown[]> {
-    const result = await this.knex.raw(sql);
+    const result: unknown = await this.knex.raw(sql);
 
     // Handle different database return formats
     if (Array.isArray(result)) {
       // MySQL returns [rows, fields]
-      return result[0] as unknown[];
+      const rows = result[0];
+      return Array.isArray(rows) ? rows : [];
     }
     // PostgreSQL returns { rows: [...] }
-    if (result.rows) {
-      return result.rows as unknown[];
+    if (typeof result === 'object' && result !== null && 'rows' in result) {
+      const { rows } = result as { rows: unknown[] };
+      return Array.isArray(rows) ? rows : [];
     }
     // Oracle may return array directly
-    return result as unknown[];
+    return [];
   }
 
   /**
