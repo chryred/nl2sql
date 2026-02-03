@@ -1,0 +1,125 @@
+# MySQL Schema Queries
+# MySQL 데이터베이스에서 스키마 정보를 추출하기 위한 쿼리 정의
+
+# 제외할 시스템 데이터베이스 목록
+excludeSchemas:
+  - information_schema
+  - mysql
+  - performance_schema
+  - sys
+
+queries:
+  # 사용 가능한 데이터베이스(스키마) 목록 조회
+  schemas:
+    sql: |
+      SELECT SCHEMA_NAME as schema_name
+      FROM information_schema.SCHEMATA
+      ORDER BY SCHEMA_NAME
+    mapping:
+      name: schema_name
+
+  # 모든 데이터베이스의 테이블 목록 조회 (시스템 데이터베이스 제외)
+  tables:
+    sql: |
+      SELECT
+        t.TABLE_SCHEMA as schema_name,
+        t.TABLE_NAME as table_name,
+        t.TABLE_COMMENT as table_comment
+      FROM information_schema.TABLES t
+      WHERE t.TABLE_TYPE = 'BASE TABLE'
+      ORDER BY t.TABLE_SCHEMA, t.TABLE_NAME
+    mapping:
+      schemaName: schema_name
+      name: table_name
+      comment: table_comment
+
+  # 특정 테이블의 컬럼 정보 조회
+  columns:
+    sql: |
+      SELECT
+        c.COLUMN_NAME as column_name,
+        c.DATA_TYPE as data_type,
+        c.IS_NULLABLE as is_nullable,
+        c.COLUMN_DEFAULT as column_default,
+        c.COLUMN_KEY as column_key,
+        c.COLUMN_COMMENT as column_comment
+      FROM information_schema.COLUMNS c
+      WHERE c.TABLE_SCHEMA = :database
+        AND c.TABLE_NAME = :tableName
+      ORDER BY c.ORDINAL_POSITION
+    params:
+      - database
+      - tableName
+
+  # 특정 테이블의 외래키 정보 조회
+  foreignKeys:
+    sql: |
+      SELECT
+        kcu.COLUMN_NAME as column_name,
+        kcu.REFERENCED_TABLE_SCHEMA as foreign_schema_name,
+        kcu.REFERENCED_TABLE_NAME as foreign_table_name,
+        kcu.REFERENCED_COLUMN_NAME as foreign_column_name
+      FROM information_schema.KEY_COLUMN_USAGE kcu
+      WHERE kcu.TABLE_SCHEMA = :database
+        AND kcu.TABLE_NAME = :tableName
+        AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+    params:
+      - database
+      - tableName
+
+  # 특정 테이블의 제약조건 정보 조회
+  constraints:
+    sql: |
+      SELECT
+        tc.CONSTRAINT_NAME as constraint_name,
+        tc.CONSTRAINT_TYPE as constraint_type,
+        GROUP_CONCAT(kcu.COLUMN_NAME ORDER BY kcu.ORDINAL_POSITION) as columns
+      FROM information_schema.TABLE_CONSTRAINTS tc
+      JOIN information_schema.KEY_COLUMN_USAGE kcu
+        ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+        AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA
+        AND tc.TABLE_NAME = kcu.TABLE_NAME
+      WHERE tc.TABLE_SCHEMA = :database
+        AND tc.TABLE_NAME = :tableName
+      GROUP BY tc.CONSTRAINT_NAME, tc.CONSTRAINT_TYPE
+      ORDER BY tc.CONSTRAINT_TYPE, tc.CONSTRAINT_NAME
+    params:
+      - database
+      - tableName
+
+  # 특정 테이블의 인덱스 정보 조회
+  indexes:
+    sql: |
+      SELECT
+        s.INDEX_NAME as index_name,
+        GROUP_CONCAT(s.COLUMN_NAME ORDER BY s.SEQ_IN_INDEX) as columns,
+        NOT s.NON_UNIQUE as is_unique,
+        s.INDEX_TYPE as index_type
+      FROM information_schema.STATISTICS s
+      WHERE s.TABLE_SCHEMA = :database
+        AND s.TABLE_NAME = :tableName
+        AND s.INDEX_NAME != 'PRIMARY'
+      GROUP BY s.INDEX_NAME, s.NON_UNIQUE, s.INDEX_TYPE
+      ORDER BY s.INDEX_NAME
+    params:
+      - database
+      - tableName
+
+  # 최근 쿼리 패턴 조회 (performance_schema 필요)
+  recentQueries:
+    sql: |
+      SELECT
+        DIGEST_TEXT as query,
+        COUNT_STAR as call_count,
+        ROUND(AVG_TIMER_WAIT / 1000000000, 2) as avg_time_ms
+      FROM performance_schema.events_statements_summary_by_digest
+      WHERE SCHEMA_NAME = :database
+        AND DIGEST_TEXT NOT LIKE '%performance_schema%'
+        AND DIGEST_TEXT NOT LIKE 'SET %'
+        AND DIGEST_TEXT NOT LIKE 'COMMIT%'
+        AND DIGEST_TEXT NOT LIKE 'BEGIN%'
+      ORDER BY COUNT_STAR DESC
+      LIMIT 20
+    params:
+      - database
+    optional: true

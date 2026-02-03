@@ -1,0 +1,189 @@
+# Oracle Schema Queries
+# Oracle 데이터베이스에서 스키마 정보를 추출하기 위한 쿼리 정의
+
+# 제외할 시스템 스키마 목록
+excludeSchemas:
+  - SYS
+  - SYSTEM
+  - DBSNMP
+  - OUTLN
+  - APPQOSSYS
+  - DBSFWUSER
+  - GGSYS
+  - ANONYMOUS
+  - CTXSYS
+  - DVSYS
+  - DVF
+  - GSMADMIN_INTERNAL
+  - MDSYS
+  - OLAPSYS
+  - ORDDATA
+  - ORDSYS
+  - WMSYS
+  - XDB
+  - LBACSYS
+  - OJVMSYS
+  - AUDSYS
+  - GSMCATUSER
+  - GSMUSER
+  - SYSBACKUP
+  - SYSDG
+  - SYSKM
+  - SYSRAC
+  - SYS$UMF
+  - DGPDB_INT
+  - REMOTE_SCHEDULER_AGENT
+
+queries:
+  # 사용 가능한 스키마(사용자) 목록 조회
+  schemas:
+    sql: |
+      SELECT USERNAME as schema_name
+      FROM ALL_USERS
+      ORDER BY USERNAME
+    mapping:
+      name: schema_name
+
+  # 모든 스키마의 테이블 목록 조회 (시스템 스키마 제외)
+  tables:
+    sql: |
+      SELECT
+        t.OWNER as schema_name,
+        t.TABLE_NAME as table_name,
+        c.COMMENTS as table_comment
+      FROM ALL_TABLES t
+      LEFT JOIN ALL_TAB_COMMENTS c
+        ON t.OWNER = c.OWNER
+        AND t.TABLE_NAME = c.TABLE_NAME
+      ORDER BY t.OWNER, t.TABLE_NAME
+    mapping:
+      schemaName: schema_name
+      name: table_name
+      comment: table_comment
+
+  # 특정 테이블의 컬럼 정보 조회
+  columns:
+    sql: |
+      SELECT
+        c.COLUMN_NAME as column_name,
+        c.DATA_TYPE as data_type,
+        CASE WHEN c.NULLABLE = 'Y' THEN 'YES' ELSE 'NO' END as is_nullable,
+        c.DATA_DEFAULT as column_default,
+        CASE
+          WHEN EXISTS (
+            SELECT 1 FROM ALL_CONS_COLUMNS acc
+            JOIN ALL_CONSTRAINTS ac ON acc.CONSTRAINT_NAME = ac.CONSTRAINT_NAME
+              AND acc.OWNER = ac.OWNER
+            WHERE ac.CONSTRAINT_TYPE = 'P'
+              AND acc.OWNER = c.OWNER
+              AND acc.TABLE_NAME = c.TABLE_NAME
+              AND acc.COLUMN_NAME = c.COLUMN_NAME
+          ) THEN 1 ELSE 0
+        END as is_primary_key,
+        cc.COMMENTS as column_comment
+      FROM ALL_TAB_COLUMNS c
+      LEFT JOIN ALL_COL_COMMENTS cc
+        ON c.OWNER = cc.OWNER
+        AND c.TABLE_NAME = cc.TABLE_NAME
+        AND c.COLUMN_NAME = cc.COLUMN_NAME
+      WHERE c.OWNER = :schemaName
+        AND c.TABLE_NAME = :tableName
+      ORDER BY c.COLUMN_ID
+    params:
+      - schemaName
+      - tableName
+
+  # 특정 테이블의 외래키 정보 조회
+  foreignKeys:
+    sql: |
+      SELECT
+        a.COLUMN_NAME as column_name,
+        c_pk.OWNER as foreign_schema_name,
+        c_pk.TABLE_NAME as foreign_table_name,
+        b.COLUMN_NAME as foreign_column_name
+      FROM ALL_CONS_COLUMNS a
+      JOIN ALL_CONSTRAINTS c
+        ON a.CONSTRAINT_NAME = c.CONSTRAINT_NAME
+        AND a.OWNER = c.OWNER
+      JOIN ALL_CONSTRAINTS c_pk
+        ON c.R_CONSTRAINT_NAME = c_pk.CONSTRAINT_NAME
+        AND c.R_OWNER = c_pk.OWNER
+      JOIN ALL_CONS_COLUMNS b
+        ON c_pk.CONSTRAINT_NAME = b.CONSTRAINT_NAME
+        AND c_pk.OWNER = b.OWNER
+        AND a.POSITION = b.POSITION
+      WHERE c.CONSTRAINT_TYPE = 'R'
+        AND a.OWNER = :schemaName
+        AND a.TABLE_NAME = :tableName
+    params:
+      - schemaName
+      - tableName
+
+  # 특정 테이블의 제약조건 정보 조회
+  constraints:
+    sql: |
+      SELECT
+        uc.CONSTRAINT_NAME as constraint_name,
+        CASE uc.CONSTRAINT_TYPE
+          WHEN 'P' THEN 'PRIMARY KEY'
+          WHEN 'R' THEN 'FOREIGN KEY'
+          WHEN 'U' THEN 'UNIQUE'
+          WHEN 'C' THEN 'CHECK'
+        END as constraint_type,
+        LISTAGG(ucc.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY ucc.POSITION) as columns,
+        uc.SEARCH_CONDITION as definition
+      FROM ALL_CONSTRAINTS uc
+      JOIN ALL_CONS_COLUMNS ucc
+        ON uc.CONSTRAINT_NAME = ucc.CONSTRAINT_NAME
+        AND uc.OWNER = ucc.OWNER
+      WHERE uc.OWNER = :schemaName
+        AND uc.TABLE_NAME = :tableName
+        AND uc.CONSTRAINT_TYPE IN ('P', 'R', 'U', 'C')
+      GROUP BY uc.CONSTRAINT_NAME, uc.CONSTRAINT_TYPE, uc.SEARCH_CONDITION
+      ORDER BY uc.CONSTRAINT_TYPE, uc.CONSTRAINT_NAME
+    params:
+      - schemaName
+      - tableName
+
+  # 특정 테이블의 인덱스 정보 조회
+  indexes:
+    sql: |
+      SELECT
+        ui.INDEX_NAME as index_name,
+        LISTAGG(uic.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY uic.COLUMN_POSITION) as columns,
+        CASE WHEN ui.UNIQUENESS = 'UNIQUE' THEN 1 ELSE 0 END as is_unique,
+        ui.INDEX_TYPE as index_type
+      FROM ALL_INDEXES ui
+      JOIN ALL_IND_COLUMNS uic
+        ON ui.INDEX_NAME = uic.INDEX_NAME
+        AND ui.OWNER = uic.INDEX_OWNER
+      WHERE ui.OWNER = :schemaName
+        AND ui.TABLE_NAME = :tableName
+        AND NOT EXISTS (
+          SELECT 1 FROM ALL_CONSTRAINTS uc
+          WHERE uc.INDEX_NAME = ui.INDEX_NAME
+            AND uc.OWNER = ui.OWNER
+            AND uc.CONSTRAINT_TYPE = 'P'
+        )
+      GROUP BY ui.INDEX_NAME, ui.UNIQUENESS, ui.INDEX_TYPE
+      ORDER BY ui.INDEX_NAME
+    params:
+      - schemaName
+      - tableName
+
+  # 최근 쿼리 패턴 조회 (v$sql 뷰 접근 권한 필요)
+  recentQueries:
+    sql: |
+      SELECT
+        sql_text as query,
+        executions as call_count,
+        ROUND(elapsed_time / NULLIF(executions, 0) / 1000, 2) as avg_time_ms
+      FROM v$sql
+      WHERE parsing_schema_name = USER
+        AND sql_text NOT LIKE '%v$sql%'
+        AND sql_text NOT LIKE 'BEGIN%'
+        AND sql_text NOT LIKE 'COMMIT%'
+        AND command_type IN (2, 3, 6, 7)
+      ORDER BY executions DESC
+      FETCH FIRST 20 ROWS ONLY
+    optional: true

@@ -1,0 +1,80 @@
+# NL2SQL MCP Server Docker Compose Configuration
+#
+# Usage:
+#   1. Copy .env.example to .env and fill in values
+#   2. Run: docker-compose up -d
+#   3. Check logs: docker-compose logs -f
+#
+# For local development with host database:
+#   - Use host.docker.internal as DB_HOST on Mac/Windows
+#   - Linux users may need to use the host's IP address
+
+version: '3.8'
+
+services:
+  nl2sql-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nl2sql-mcp
+    restart: unless-stopped
+    ports:
+      - "${MCP_PORT:-3001}:3001"
+    environment:
+      # MCP Server Configuration
+      - MCP_TRANSPORT=sse
+      - MCP_PORT=3001
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+
+      # Database Configuration
+      - DB_TYPE=${DB_TYPE:-postgresql}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_SERVICE_NAME=${DB_SERVICE_NAME}
+
+      # AI Provider Configuration
+      - NL2SQL_AI_PROVIDER=${NL2SQL_AI_PROVIDER:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NL2SQL_MODEL=${NL2SQL_MODEL}
+
+      # Node Environment
+      - NODE_ENV=production
+
+    # For accessing host machine's localhost services (Mac/Windows)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Network configuration (optional - use if connecting to other containers)
+networks:
+  default:
+    name: nl2sql-network
+    driver: bridge
