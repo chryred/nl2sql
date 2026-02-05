@@ -15,6 +15,8 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `db_connect` | 자격 증명으로 DB 연결 테스트 |
 | `nl2sql_schema` | 스키마 조회 (json/prompt/summary) |
 | `nl2sql_query` | 자연어 → SQL 변환 및 실행 |
+| `cache_status` | 메타데이터 캐시 상태 조회 |
+| `cache_refresh` | 메타데이터 캐시 새로고침 (Docker 재기동 불필요) |
 
 ## Transport Modes
 
@@ -36,6 +38,10 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.2.0
+- 메타데이터 캐시 관리 MCP 도구 추가 (`cache_status`, `cache_refresh`)
+- Docker 재기동 없이 캐시 초기화 가능
 
 ### v1.1.0
 - Model Context Protocol 서버 구현

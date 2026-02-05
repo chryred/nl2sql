@@ -14,6 +14,12 @@ import { dbTestConnection, dbTestInputSchema } from './tools/db-test.js';
 import { dbConnect, dbConnectInputSchema } from './tools/db-connect.js';
 import { nl2sqlSchema, nl2sqlSchemaInputSchema } from './tools/nl2sql-schema.js';
 import { nl2sqlQuery, nl2sqlQueryInputSchema, formatAsText } from './tools/nl2sql-query.js';
+import {
+  cacheStatus,
+  cacheStatusInputSchema,
+  cacheRefresh,
+  cacheRefreshInputSchema,
+} from './tools/cache-manage.js';
 
 /**
  * MCP 서버 인스턴스를 생성하고 도구들을 등록합니다.
@@ -113,6 +119,48 @@ export function createMcpServer(): McpServer {
           {
             type: 'text' as const,
             text,
+          },
+        ],
+      };
+    }
+  );
+
+  // cache_status 도구 등록
+  server.registerTool(
+    'cache_status',
+    {
+      description: 'Get metadata cache status including initialization state and item counts.',
+      inputSchema: cacheStatusInputSchema,
+    },
+    () => {
+      const result = cacheStatus();
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // cache_refresh 도구 등록
+  server.registerTool(
+    'cache_refresh',
+    {
+      description:
+        'Refresh metadata cache without Docker restart. Use invalidateOnly=true to just clear cache.',
+      inputSchema: cacheRefreshInputSchema,
+    },
+    async (args) => {
+      const input = cacheRefreshInputSchema.parse(args);
+      const result = await cacheRefresh(input);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };
