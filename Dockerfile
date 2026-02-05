@@ -47,6 +47,9 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 
+# Copy source metadata files (YAML queries)
+COPY --from=builder /app/src/database/schemas/metadata ./src/database/schemas/metadata
+
 # Change ownership to non-root user
 RUN chown -R nl2sql:nodejs /app
 
@@ -60,5 +63,6 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
-# Start MCP server in SSE mode
+# Default: Start MCP server in SSE mode
+# Override with CMD ["node", "dist/index.js", "interactive"] for REPL mode
 CMD ["node", "dist/mcp/index.js"]

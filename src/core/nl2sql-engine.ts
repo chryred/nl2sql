@@ -23,6 +23,8 @@ import { createAIClient, type AIProvider } from '../ai/client-factory.js';
 import { buildPrompt } from '../ai/prompt-builder.js';
 import { parseSQL, validateSQL } from '../ai/response-parser.js';
 import { extractSchema, type SchemaInfo, type TableInfo } from '../database/schema-extractor.js';
+import { getMetadataCache, initializeMetadataCache } from '../database/metadata/index.js';
+import type { MetadataCache } from '../database/metadata/types.js';
 
 /**
  * NL2SQL 처리 결과 인터페이스
@@ -61,6 +63,14 @@ export interface NL2SQLResult {
  * // SQL 생성 및 실행
  * const result = await engine.process('최근 주문', true);
  */
+/**
+ * NL2SQLEngine 옵션
+ */
+export interface NL2SQLEngineOptions {
+  /** 메타데이터 캐시 사용 여부 (기본값: true) */
+  useMetadata?: boolean;
+}
+
 export class NL2SQLEngine {
   /** Knex 데이터베이스 연결 */
   private knex: Knex;
@@ -74,16 +84,21 @@ export class NL2SQLEngine {
   /** 캐시된 스키마 정보 */
   private cachedSchema: SchemaInfo | null = null;
 
+  /** 메타데이터 사용 여부 */
+  private useMetadata: boolean;
+
   /**
    * NL2SQLEngine 생성자
    *
    * @param knex - Knex 데이터베이스 연결 인스턴스
    * @param config - 애플리케이션 설정 객체
+   * @param options - 엔진 옵션
    */
-  constructor(knex: Knex, config: Config) {
+  constructor(knex: Knex, config: Config, options: NL2SQLEngineOptions = {}) {
     this.knex = knex;
     this.config = config;
     this.aiClient = createAIClient(config);
+    this.useMetadata = options.useMetadata ?? true;
   }
 
   /**
@@ -105,6 +120,50 @@ export class NL2SQLEngine {
     }
     this.cachedSchema = await extractSchema(this.knex, this.config);
     return this.cachedSchema;
+  }
+
+  /**
+   * 메타데이터 캐시를 가져옵니다.
+   *
+   * @description
+   * 메타데이터 캐시가 초기화되지 않은 경우 자동으로 초기화를 시도합니다.
+   * 초기화 실패 시 null을 반환합니다 (graceful degradation).
+   *
+   * @returns 메타데이터 캐시 또는 null
+   *
+   * @example
+   * const metadata = await engine.getMetadata();
+   * if (metadata) {
+   *   console.log(`${metadata.glossaryTerms.length} terms loaded`);
+   * }
+   */
+  async getMetadata(): Promise<MetadataCache | null> {
+    if (!this.useMetadata) {
+      return null;
+    }
+
+    // 이미 캐시된 메타데이터가 있으면 반환
+    const cached = getMetadataCache();
+    if (cached) {
+      return cached;
+    }
+
+    // 캐시가 없으면 초기화 시도
+    try {
+      return await initializeMetadataCache(this.knex, this.config.database.type);
+    } catch {
+      // 메타데이터 로드 실패 시 null 반환 (graceful degradation)
+      return null;
+    }
+  }
+
+  /**
+   * 메타데이터 사용 여부를 설정합니다.
+   *
+   * @param use - 메타데이터 사용 여부
+   */
+  setUseMetadata(use: boolean): void {
+    this.useMetadata = use;
   }
 
   /**
@@ -141,11 +200,13 @@ export class NL2SQLEngine {
    */
   async generateSQL(naturalLanguageQuery: string): Promise<string> {
     const schema = await this.getSchema();
+    const metadata = await this.getMetadata();
 
     const prompt = buildPrompt({
       tables: schema,
       naturalLanguageQuery,
       dbType: this.config.database.type,
+      metadata,
     });
 
     const response = await this.aiClient.generateSQL(prompt);
@@ -174,20 +235,40 @@ export class NL2SQLEngine {
    * console.table(results);
    */
   async executeSQL(sql: string): Promise<unknown[]> {
-    const result: unknown = await this.knex.raw(sql);
+    const result: any = await this.knex.raw(sql);
 
-    // Handle different database return formats
+    // 1. MySQL 대응
+    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
+        return result[0];
+    }
+    // 2. PostgreSQL 대응
+    if (result && typeof result === 'object' && 'rows' in result) {
+        return Array.isArray(result.rows) ? result.rows : [];
+    }
+    // 3. Oracle: 직접 배열 반환 대응
     if (Array.isArray(result)) {
-      // MySQL returns [rows, fields]
-      const rows = result[0];
-      return Array.isArray(rows) ? rows : [];
+        return result;
     }
-    // PostgreSQL returns { rows: [...] }
-    if (typeof result === 'object' && result !== null && 'rows' in result) {
-      const { rows } = result as { rows: unknown[] };
-      return Array.isArray(rows) ? rows : [];
+    // 4. Oracle: ResultSet(커서) 특수 상황 대응
+    if (result && typeof result === 'object' && 'resultSet' in result) {
+        const rows: unknown[] = [];
+        const rs = result.resultSet;
+
+        try {
+            let row;
+            // 한 줄씩 읽어서 rows 배열에 담기
+            while ((row = await rs.getRow())) {
+                rows.push(row);
+            }
+            return rows;
+        } catch (error) {
+            console.error('ResultSet 처리 중 오류 발생:', error);
+            throw error;
+        } finally {
+            // [중요] 데이터 추출이 끝나면 반드시 커서를 닫아 리소스 해제
+            await rs.close();
+        }
     }
-    // Oracle may return array directly
     return [];
   }
 

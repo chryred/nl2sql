@@ -105,15 +105,10 @@ function loadConfigFile(): ConfigFile {
       return JSON.parse(content) as ConfigFile;
     }
 
-    // YAML 파일 (.yaml)
-    if (existsSync(yamlPath)) {
-      const content = readFileSync(yamlPath, 'utf-8');
-      return yaml.load(content) as ConfigFile;
-    }
-
-    // YAML 파일 (.yml)
-    if (existsSync(ymlPath)) {
-      const content = readFileSync(ymlPath, 'utf-8');
+    // YAML 파일 (.yaml 또는 .yml)
+    const yamlFilePath = [yamlPath, ymlPath].find((p) => existsSync(p));
+    if (yamlFilePath) {
+      const content = readFileSync(yamlFilePath, 'utf-8');
       return yaml.load(content) as ConfigFile;
     }
   } catch {

@@ -25,6 +25,7 @@ import {
   type TableInfo,
 } from '../database/schema-extractor.js';
 import type { DatabaseType } from '../database/types.js';
+import type { MetadataCache } from '../database/metadata/types.js';
 
 /**
  * 프롬프트 빌더 옵션 인터페이스
@@ -39,6 +40,8 @@ export interface PromptOptions {
   naturalLanguageQuery: string;
   /** 대상 데이터베이스 타입 */
   dbType: DatabaseType;
+  /** 메타데이터 캐시 (선택적) */
+  metadata?: MetadataCache | null;
 }
 
 /**
@@ -128,6 +131,109 @@ function getQuerySafetyGuidelines(): string {
 }
 
 /**
+ * 메타데이터를 프롬프트 텍스트로 포맷팅합니다.
+ *
+ * @param metadata - 메타데이터 캐시
+ * @param dbType - 데이터베이스 타입
+ * @returns 메타데이터 프롬프트 텍스트
+ * @private
+ */
+function formatMetadataForPrompt(metadata: MetadataCache, dbType: DatabaseType): string {
+  const sections: string[] = [];
+
+  // 테이블 관계 정보
+  if (metadata.relationships.length > 0) {
+    const relationshipLines = metadata.relationships.map((rel) => {
+      const joinType = rel.joinHint ? ` (${rel.joinHint} JOIN recommended)` : '';
+      return `  - ${rel.sourceTable}.${rel.sourceColumn} -> ${rel.targetTable}.${rel.targetColumn} (${rel.relationshipType})${joinType}`;
+    });
+    sections.push(`Table Relationships:\n${relationshipLines.join('\n')}`);
+  }
+
+  // 용어집 (비즈니스 용어 → SQL 조건 매핑)
+  if (metadata.glossaryTerms.length > 0) {
+    const glossaryLines = metadata.glossaryTerms.map((term) => {
+      // DB 타입별 SQL 조건 선택
+      let sqlCondition = term.sqlCondition;
+      if (dbType === 'postgresql' && term.sqlConditionPg) {
+        sqlCondition = term.sqlConditionPg;
+      } else if (dbType === 'mysql' && term.sqlConditionMysql) {
+        sqlCondition = term.sqlConditionMysql;
+      } else if (dbType === 'oracle' && term.sqlConditionOracle) {
+        sqlCondition = term.sqlConditionOracle;
+      }
+      const definition = term.definition ? ` - ${term.definition}` : '';
+      return `  - "${term.term}" → ${sqlCondition}${definition}`;
+    });
+    sections.push(`Business Terms (use these SQL conditions when user mentions these terms):\n${glossaryLines.join('\n')}`);
+  }
+
+  // 용어 별칭 (동의어)
+  if (metadata.glossaryAliases.length > 0) {
+    const aliasMap = new Map<string, string[]>();
+    metadata.glossaryAliases.forEach((alias) => {
+      const existing = aliasMap.get(alias.termCode) || [];
+      existing.push(alias.alias);
+      aliasMap.set(alias.termCode, existing);
+    });
+
+    const aliasLines: string[] = [];
+    aliasMap.forEach((aliases, termCode) => {
+      const term = metadata.glossaryTerms.find((t) => t.termCode === termCode);
+      if (term) {
+        aliasLines.push(`  - "${term.term}" also known as: ${aliases.join(', ')}`);
+      }
+    });
+    if (aliasLines.length > 0) {
+      sections.push(`Term Aliases (synonyms):\n${aliasLines.join('\n')}`);
+    }
+  }
+
+  // 쿼리 패턴
+  if (metadata.queryPatterns.length > 0) {
+    const patternLines = metadata.queryPatterns.slice(0, 10).map((pattern) => {
+      // DB 타입별 SQL 템플릿 선택
+      let template = pattern.sqlTemplate;
+      if (dbType === 'postgresql' && pattern.sqlTemplatePg) {
+        template = pattern.sqlTemplatePg;
+      } else if (dbType === 'mysql' && pattern.sqlTemplateMysql) {
+        template = pattern.sqlTemplateMysql;
+      } else if (dbType === 'oracle' && pattern.sqlTemplateOracle) {
+        template = pattern.sqlTemplateOracle;
+      }
+      const example = pattern.exampleInput ? ` (e.g., "${pattern.exampleInput}")` : '';
+      return `  - ${pattern.patternName}${example}:\n    ${template}`;
+    });
+    sections.push(`Common Query Patterns:\n${patternLines.join('\n')}`);
+  }
+
+  // 패턴 키워드 (사용자가 특정 키워드를 언급하면 해당 패턴 사용)
+  if (metadata.patternKeywords.length > 0) {
+    const keywordMap = new Map<string, string[]>();
+    metadata.patternKeywords.forEach((kw) => {
+      const existing = keywordMap.get(kw.patternCode) || [];
+      existing.push(kw.keyword);
+      keywordMap.set(kw.patternCode, existing);
+    });
+
+    const keywordLines: string[] = [];
+    keywordMap.forEach((keywords, patternCode) => {
+      const pattern = metadata.queryPatterns.find((p) => p.patternCode === patternCode);
+      if (pattern) {
+        keywordLines.push(`  - Keywords [${keywords.join(', ')}] → use "${pattern.patternName}" pattern`);
+      }
+    });
+    if (keywordLines.length > 0) {
+      sections.push(`Pattern Keywords (when user mentions these, consider the corresponding pattern):\n${keywordLines.join('\n')}`);
+    }
+  }
+
+  return sections.length > 0
+    ? `Domain-Specific Metadata:\n\n${sections.join('\n\n')}`
+    : '';
+}
+
+/**
  * AI 모델용 SQL 생성 프롬프트를 구성합니다.
  *
  * @description
@@ -151,26 +257,31 @@ function getQuerySafetyGuidelines(): string {
  * const sql = await aiClient.generateSQL(prompt);
  */
 export function buildPrompt(options: PromptOptions): string {
-  const { tables, naturalLanguageQuery, dbType } = options;
+  const { tables, naturalLanguageQuery, dbType, metadata } = options;
   const schemaText = formatSchemaForPrompt(tables);
   const dbSpecificNotes = getDbSpecificNotes(dbType);
   const performanceGuidelines = getPerformanceGuidelines(tables);
   const safetyGuidelines = getQuerySafetyGuidelines();
 
-  return `Given the following database schema:
+  // 메타데이터 섹션 (있는 경우에만 추가)
+  const metadataSection = metadata ? formatMetadataForPrompt(metadata, dbType) : '';
 
-${schemaText}
+  const sections = [
+    `Given the following database schema:`,
+    schemaText,
+    `Database type: ${dbType.toUpperCase()}`,
+    `Guidelines:\n${dbSpecificNotes}`,
+    performanceGuidelines,
+    safetyGuidelines,
+  ];
 
-Database type: ${dbType.toUpperCase()}
+  // 메타데이터가 있으면 추가
+  if (metadataSection) {
+    sections.push(metadataSection);
+  }
 
-Guidelines:
-${dbSpecificNotes}
+  sections.push(`User request: ${naturalLanguageQuery}`);
+  sections.push(`Generate a valid, efficient SQL query that fulfills the user's request:`);
 
-${performanceGuidelines}
-
-${safetyGuidelines}
-
-User request: ${naturalLanguageQuery}
-
-Generate a valid, efficient SQL query that fulfills the user's request:`;
+  return sections.join('\n\n');
 }

@@ -73,6 +73,59 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Interactive CLI mode service
+  nl2sql-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nl2sql-cli
+    stdin_open: true    # docker run -i
+    tty: true           # docker run -t
+    profiles:
+      - cli             # Only start with: docker-compose --profile cli up
+    environment:
+      # Database Configuration
+      - DB_TYPE=${DB_TYPE:-postgresql}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_SERVICE_NAME=${DB_SERVICE_NAME}
+
+      # AI Provider Configuration
+      - NL2SQL_AI_PROVIDER=${NL2SQL_AI_PROVIDER:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NL2SQL_MODEL=${NL2SQL_MODEL}
+
+      # Node Environment
+      - NODE_ENV=production
+
+    # For accessing host machine's localhost services (Mac/Windows)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Override default command for interactive mode
+    command: ["node", "dist/index.js", "interactive", "--auto-execute"]
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 # Network configuration (optional - use if connecting to other containers)
 networks:
   default:

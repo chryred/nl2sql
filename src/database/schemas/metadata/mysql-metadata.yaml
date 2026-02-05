@@ -1,0 +1,320 @@
+# ============================================================================
+# NL2SQL 메타데이터 조회 쿼리 (MySQL)
+# ============================================================================
+#
+# MySQL 특화 사항:
+#   - 데이터베이스명이 스키마 역할 (nl2sql 데이터베이스)
+#   - JSON 함수로 배열 데이터 처리
+#   - TINYINT(1)이 BOOLEAN 역할
+# ============================================================================
+
+metadataSchema: nl2sql
+
+queries:
+  # ==========================================================================
+  # 테이블 관계 조회
+  # ==========================================================================
+  relationships:
+    sql: |
+      SELECT
+        source_schema,
+        source_table,
+        source_column,
+        target_schema,
+        target_table,
+        target_column,
+        relationship_type,
+        confidence_level,
+        join_hint,
+        polymorphic_type_column,
+        polymorphic_type_value,
+        description
+      FROM nl2sql.table_relationships
+      WHERE is_active = 1
+      ORDER BY source_schema, source_table, source_column
+    mapping:
+      sourceSchema: source_schema
+      sourceTable: source_table
+      sourceColumn: source_column
+      targetSchema: target_schema
+      targetTable: target_table
+      targetColumn: target_column
+      relationshipType: relationship_type
+      confidence: confidence_level
+      joinHint: join_hint
+
+  # ==========================================================================
+  # 네이밍 컨벤션 조회
+  # ==========================================================================
+  namingConventions:
+    sql: |
+      SELECT
+        convention_name,
+        column_pattern,
+        target_table_pattern,
+        target_column_pattern,
+        table_prefix_strip,
+        table_suffix_strip,
+        apply_pluralization,
+        priority,
+        apply_to_schemas,
+        exclude_tables,
+        description
+      FROM nl2sql.naming_conventions
+      WHERE is_active = 1
+      ORDER BY priority
+    mapping:
+      name: convention_name
+      columnPattern: column_pattern
+      targetTablePattern: target_table_pattern
+      targetColumnPattern: target_column_pattern
+      applyPluralization: apply_pluralization
+      priority: priority
+      applyToSchemas: apply_to_schemas
+      excludeTables: exclude_tables
+
+  # ==========================================================================
+  # 공통코드 테이블 설정 조회
+  # ==========================================================================
+  codeTables:
+    sql: |
+      SELECT
+        code_table_name,
+        table_schema,
+        table_name,
+        group_code_column,
+        code_column,
+        code_name_column,
+        description_column,
+        sort_order_column,
+        active_flag_column,
+        active_flag_value,
+        additional_filter,
+        locale_column,
+        default_locale
+      FROM nl2sql.code_tables
+      WHERE is_active = 1
+    mapping:
+      codeTableName: code_table_name
+      tableSchema: table_schema
+      tableName: table_name
+      groupCodeColumn: group_code_column
+      codeColumn: code_column
+      codeNameColumn: code_name_column
+      descriptionColumn: description_column
+      sortOrderColumn: sort_order_column
+      activeFlagColumn: active_flag_column
+      activeFlagValue: active_flag_value
+      additionalFilter: additional_filter
+
+  # ==========================================================================
+  # 컬럼-코드 매핑 조회
+  # ==========================================================================
+  columnCodeMappings:
+    sql: |
+      SELECT
+        target_schema,
+        target_table,
+        target_column,
+        code_table_name,
+        group_code,
+        display_name,
+        include_in_prompt
+      FROM nl2sql.column_code_mapping
+      WHERE is_active = 1
+      ORDER BY target_schema, target_table, target_column
+    mapping:
+      targetSchema: target_schema
+      targetTable: target_table
+      targetColumn: target_column
+      codeTableName: code_table_name
+      groupCode: group_code
+      displayName: display_name
+      includeInPrompt: include_in_prompt
+
+  # ==========================================================================
+  # 코드 별칭 조회
+  # ==========================================================================
+  codeAliases:
+    sql: |
+      SELECT
+        code_table_name,
+        group_code,
+        code_value,
+        alias,
+        locale
+      FROM nl2sql.code_aliases
+      WHERE is_active = 1
+    mapping:
+      codeTableName: code_table_name
+      groupCode: group_code
+      codeValue: code_value
+      alias: alias
+      locale: locale
+
+  # ==========================================================================
+  # 용어집 조회 (MySQL용 SQL 조건이 기본)
+  # ==========================================================================
+  glossaryTerms:
+    sql: |
+      SELECT
+        term_code,
+        term,
+        category,
+        sql_condition,
+        sql_condition_pg,
+        sql_condition_oracle,
+        apply_to_tables,
+        required_columns,
+        definition,
+        example_usage,
+        priority
+      FROM nl2sql.glossary_terms
+      WHERE is_active = 1
+      ORDER BY priority
+    mapping:
+      termCode: term_code
+      term: term
+      category: category
+      sqlCondition: sql_condition
+      sqlConditionPg: sql_condition_pg
+      sqlConditionOracle: sql_condition_oracle
+      applyToTables: apply_to_tables
+      requiredColumns: required_columns
+      definition: definition
+      exampleUsage: example_usage
+      priority: priority
+
+  # ==========================================================================
+  # 용어 별칭 조회
+  # ==========================================================================
+  glossaryAliases:
+    sql: |
+      SELECT
+        term_code,
+        alias,
+        locale,
+        match_type
+      FROM nl2sql.glossary_aliases
+      WHERE is_active = 1
+    mapping:
+      termCode: term_code
+      alias: alias
+      locale: locale
+      matchType: match_type
+
+  # ==========================================================================
+  # 용어 컨텍스트 조회
+  # ==========================================================================
+  glossaryContexts:
+    sql: |
+      SELECT
+        term_code,
+        context_schema,
+        context_table,
+        sql_condition,
+        sql_condition_pg,
+        sql_condition_oracle,
+        required_columns,
+        context_definition
+      FROM nl2sql.glossary_contexts
+      WHERE is_active = 1
+    mapping:
+      termCode: term_code
+      contextSchema: context_schema
+      contextTable: context_table
+      sqlCondition: sql_condition
+      requiredColumns: required_columns
+      contextDefinition: context_definition
+
+  # ==========================================================================
+  # 쿼리 패턴 조회 (MySQL용 템플릿이 기본)
+  # ==========================================================================
+  queryPatterns:
+    sql: |
+      SELECT
+        pattern_code,
+        pattern_name,
+        category,
+        sql_template,
+        sql_template_pg,
+        sql_template_oracle,
+        applicable_tables,
+        required_columns,
+        required_joins,
+        match_score_threshold,
+        priority,
+        description,
+        example_input,
+        example_output
+      FROM nl2sql.query_patterns
+      WHERE is_active = 1
+      ORDER BY priority
+    mapping:
+      patternCode: pattern_code
+      patternName: pattern_name
+      category: category
+      sqlTemplate: sql_template
+      sqlTemplatePg: sql_template_pg
+      sqlTemplateOracle: sql_template_oracle
+      applicableTables: applicable_tables
+      requiredColumns: required_columns
+      requiredJoins: required_joins
+      matchScoreThreshold: match_score_threshold
+      priority: priority
+      description: description
+      exampleInput: example_input
+      exampleOutput: example_output
+
+  # ==========================================================================
+  # 패턴 파라미터 조회
+  # ==========================================================================
+  patternParameters:
+    sql: |
+      SELECT
+        pattern_code,
+        param_name,
+        param_type,
+        is_required,
+        default_value,
+        allowed_values,
+        infer_from_keywords,
+        infer_from_column_type,
+        description,
+        display_order
+      FROM nl2sql.pattern_parameters
+      WHERE is_active = 1
+      ORDER BY pattern_code, display_order
+    mapping:
+      patternCode: pattern_code
+      paramName: param_name
+      paramType: param_type
+      isRequired: is_required
+      defaultValue: default_value
+      allowedValues: allowed_values
+      inferFromKeywords: infer_from_keywords
+      inferFromColumnType: infer_from_column_type
+      description: description
+      displayOrder: display_order
+
+  # ==========================================================================
+  # 패턴 키워드 조회
+  # ==========================================================================
+  patternKeywords:
+    sql: |
+      SELECT
+        pattern_code,
+        keyword,
+        locale,
+        weight,
+        match_type,
+        is_required
+      FROM nl2sql.pattern_keywords
+      WHERE is_active = 1
+    mapping:
+      patternCode: pattern_code
+      keyword: keyword
+      locale: locale
+      weight: weight
+      matchType: match_type
+      isRequired: is_required

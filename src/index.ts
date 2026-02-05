@@ -7,6 +7,8 @@ import { getConfig, validateConfig } from './config/index.js';
 import { createConnection, testConnection, closeConnection } from './database/connection.js';
 import { queryCommand } from './cli/commands/query.js';
 import { schemaCommand } from './cli/commands/schema.js';
+import { startInteractiveMode } from './cli/modes/interactive.js';
+import { initializeMetadataCache } from './database/metadata/index.js';
 import { NL2SQLError, maskSensitiveInfo, getErrorMessage } from './errors/index.js';
 import { isValidFormat, type OutputFormat } from './cli/formatters/result-formatter.js';
 
@@ -53,6 +55,30 @@ program
     });
   });
 
+program
+  .command('interactive')
+  .alias('i')
+  .description('대화형 REPL 모드 시작')
+  .option('-f, --format <format>', '기본 출력 형식 (table, json, csv)', 'table')
+  .option('-e, --auto-execute', '쿼리 자동 실행')
+  .action(async (options: { format?: string; autoExecute?: boolean }) => {
+    await runWithConnection(async (knex, config) => {
+      // 메타데이터 캐시 초기화
+      const cacheSpinner = ora('메타데이터 캐시 초기화 중...').start();
+      try {
+        await initializeMetadataCache(knex, config.database.type);
+        cacheSpinner.succeed('메타데이터 캐시 초기화 완료');
+      } catch (error) {
+        cacheSpinner.warn('메타데이터 캐시 초기화 실패 - 기본 모드로 계속합니다.');
+      }
+
+      await startInteractiveMode(knex, config, {
+        defaultFormat: (options.format as OutputFormat) || 'table',
+        autoExecute: options.autoExecute,
+      });
+    }, { keepAlive: true });
+  });
+
 // Default command: direct query
 program
   .argument('[query]', '자연어 쿼리')
@@ -87,9 +113,13 @@ program
  * @description
  * 연결 설정, 명령어 실행, 에러 처리, 연결 해제를 담당합니다.
  * 민감한 정보는 마스킹하여 출력합니다.
+ *
+ * @param fn - 실행할 함수
+ * @param options - 옵션 (keepAlive: 연결 유지 여부)
  */
 async function runWithConnection(
-  fn: (knex: ReturnType<typeof createConnection>, config: ReturnType<typeof getConfig>) => Promise<void>
+  fn: (knex: ReturnType<typeof createConnection>, config: ReturnType<typeof getConfig>) => Promise<void>,
+  options: { keepAlive?: boolean } = {}
 ): Promise<void> {
   const isProduction = process.env.NODE_ENV === 'production';
   let config;
@@ -142,7 +172,10 @@ async function runWithConnection(
     }
     process.exit(1);
   } finally {
-    await closeConnection();
+    // keepAlive 옵션이 없으면 연결 종료
+    if (!options.keepAlive) {
+      await closeConnection();
+    }
   }
 }
 
