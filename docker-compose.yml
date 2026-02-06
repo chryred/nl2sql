@@ -9,8 +9,6 @@
 #   - Use host.docker.internal as DB_HOST on Mac/Windows
 #   - Linux users may need to use the host's IP address
 
-version: '3.8'
-
 services:
   nl2sql-mcp:
     build:
