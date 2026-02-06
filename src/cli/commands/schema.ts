@@ -18,7 +18,10 @@ import chalk from 'chalk';
 import ora from 'ora';
 import type { Knex } from 'knex';
 import type { Config } from '../../config/index.js';
-import { extractSchema, formatSchemaForPrompt } from '../../database/schema-extractor.js';
+import {
+  extractSchema,
+  formatSchemaForPrompt,
+} from '../../database/schema-extractor.js';
 import type { SchemaInfo } from '../../database/types.js';
 
 /**
@@ -109,7 +112,9 @@ export async function schemaCommand(
       const tableComment = table.comment
         ? chalk.gray(` -- ${table.comment}`)
         : '';
-      console.log(chalk.bold.blue(`📋 ${schemaPrefix}${table.name}`) + tableComment);
+      console.log(
+        chalk.bold.blue(`📋 ${schemaPrefix}${table.name}`) + tableComment
+      );
 
       // Columns
       for (const col of table.columns) {
@@ -122,7 +127,9 @@ export async function schemaCommand(
             ? `${col.references.schema}.`
             : '';
           flags.push(
-            chalk.cyan(`FK → ${refSchema}${col.references.table}.${col.references.column}`)
+            chalk.cyan(
+              `FK → ${refSchema}${col.references.table}.${col.references.column}`
+            )
           );
         }
         if (!col.nullable) flags.push(chalk.red('NOT NULL'));

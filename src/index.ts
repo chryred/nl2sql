@@ -4,20 +4,28 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { getConfig, validateConfig } from './config/index.js';
-import { createConnection, testConnection, closeConnection } from './database/connection.js';
+import {
+  createConnection,
+  testConnection,
+  closeConnection,
+} from './database/connection.js';
 import { queryCommand } from './cli/commands/query.js';
 import { schemaCommand } from './cli/commands/schema.js';
 import { startInteractiveMode } from './cli/modes/interactive.js';
 import { initializeMetadataCache } from './database/metadata/index.js';
-import { NL2SQLError, maskSensitiveInfo, getErrorMessage } from './errors/index.js';
-import { isValidFormat, type OutputFormat } from './cli/formatters/result-formatter.js';
+import {
+  NL2SQLError,
+  maskSensitiveInfo,
+  getErrorMessage,
+} from './errors/index.js';
+import {
+  isValidFormat,
+  type OutputFormat,
+} from './cli/formatters/result-formatter.js';
 
 const program = new Command();
 
-program
-  .name('nl2sql')
-  .description('자연어를 SQL 쿼리로 변환')
-  .version('1.0.0');
+program.name('nl2sql').description('자연어를 SQL 쿼리로 변환').version('1.0.0');
 
 program
   .command('query')
@@ -27,22 +35,29 @@ program
   .option('-e, --execute', '생성된 쿼리 실행')
   .option('-y, --yes', '확인 프롬프트 건너뛰기')
   .option('-f, --format <format>', '결과 출력 형식 (table, json, csv)', 'table')
-  .action(async (query: string, options: { execute?: boolean; yes?: boolean; format?: string }) => {
-    // 출력 형식 검증
-    const format = options.format || 'table';
-    if (!isValidFormat(format)) {
-      console.error(chalk.red(`잘못된 형식: ${format}. table, json, csv 중 선택하세요.`));
-      process.exit(1);
-    }
+  .action(
+    async (
+      query: string,
+      options: { execute?: boolean; yes?: boolean; format?: string }
+    ) => {
+      // 출력 형식 검증
+      const format = options.format || 'table';
+      if (!isValidFormat(format)) {
+        console.error(
+          chalk.red(`잘못된 형식: ${format}. table, json, csv 중 선택하세요.`)
+        );
+        process.exit(1);
+      }
 
-    await runWithConnection(async (knex, config) => {
-      await queryCommand(knex, config, query, {
-        execute: options.execute,
-        noConfirm: options.yes,
-        format: format as OutputFormat,
+      await runWithConnection(async (knex, config) => {
+        await queryCommand(knex, config, query, {
+          execute: options.execute,
+          noConfirm: options.yes,
+          format: format as OutputFormat,
+        });
       });
-    });
-  });
+    }
+  );
 
 program
   .command('schema')
@@ -62,21 +77,26 @@ program
   .option('-f, --format <format>', '기본 출력 형식 (table, json, csv)', 'table')
   .option('-e, --auto-execute', '쿼리 자동 실행')
   .action(async (options: { format?: string; autoExecute?: boolean }) => {
-    await runWithConnection(async (knex, config) => {
-      // 메타데이터 캐시 초기화
-      const cacheSpinner = ora('메타데이터 캐시 초기화 중...').start();
-      try {
-        await initializeMetadataCache(knex, config.database.type);
-        cacheSpinner.succeed('메타데이터 캐시 초기화 완료');
-      } catch (error) {
-        cacheSpinner.warn('메타데이터 캐시 초기화 실패 - 기본 모드로 계속합니다.');
-      }
+    await runWithConnection(
+      async (knex, config) => {
+        // 메타데이터 캐시 초기화
+        const cacheSpinner = ora('메타데이터 캐시 초기화 중...').start();
+        try {
+          await initializeMetadataCache(knex, config.database.type);
+          cacheSpinner.succeed('메타데이터 캐시 초기화 완료');
+        } catch (error) {
+          cacheSpinner.warn(
+            '메타데이터 캐시 초기화 실패 - 기본 모드로 계속합니다.'
+          );
+        }
 
-      await startInteractiveMode(knex, config, {
-        defaultFormat: (options.format as OutputFormat) || 'table',
-        autoExecute: options.autoExecute,
-      });
-    }, { keepAlive: true });
+        await startInteractiveMode(knex, config, {
+          defaultFormat: (options.format as OutputFormat) || 'table',
+          autoExecute: options.autoExecute,
+        });
+      },
+      { keepAlive: true }
+    );
   });
 
 // Default command: direct query
@@ -85,27 +105,33 @@ program
   .option('-e, --execute', '생성된 쿼리 실행')
   .option('-y, --yes', '확인 프롬프트 건너뛰기')
   .option('-f, --format <format>', '결과 출력 형식 (table, json, csv)', 'table')
-  .action(async (query?: string, options?: { execute?: boolean; yes?: boolean; format?: string }) => {
-    if (!query) {
-      program.help();
-      return;
-    }
+  .action(
+    async (
+      query?: string,
+      options?: { execute?: boolean; yes?: boolean; format?: string }
+    ) => {
+      if (!query) {
+        program.help();
+        return;
+      }
+      // 출력 형식 검증
+      const format = options?.format || 'table';
+      if (!isValidFormat(format)) {
+        console.error(
+          chalk.red(`잘못된 형식: ${format}. table, json, csv 중 선택하세요.`)
+        );
+        process.exit(1);
+      }
 
-    // 출력 형식 검증
-    const format = options?.format || 'table';
-    if (!isValidFormat(format)) {
-      console.error(chalk.red(`잘못된 형식: ${format}. table, json, csv 중 선택하세요.`));
-      process.exit(1);
-    }
-
-    await runWithConnection(async (knex, config) => {
-      await queryCommand(knex, config, query, {
-        execute: options?.execute,
-        noConfirm: options?.yes,
-        format: format as OutputFormat,
+      await runWithConnection(async (knex, config) => {
+        await queryCommand(knex, config, query, {
+          execute: options?.execute,
+          noConfirm: options?.yes,
+          format: format as OutputFormat,
+        });
       });
-    });
-  });
+    }
+  );
 
 /**
  * 데이터베이스 연결을 관리하며 명령어를 실행합니다.
@@ -118,7 +144,10 @@ program
  * @param options - 옵션 (keepAlive: 연결 유지 여부)
  */
 async function runWithConnection(
-  fn: (knex: ReturnType<typeof createConnection>, config: ReturnType<typeof getConfig>) => Promise<void>,
+  fn: (
+    knex: ReturnType<typeof createConnection>,
+    config: ReturnType<typeof getConfig>
+  ) => Promise<void>,
   options: { keepAlive?: boolean } = {}
 ): Promise<void> {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -164,7 +193,9 @@ async function runWithConnection(
   } catch (error) {
     // 커스텀 에러 처리
     if (error instanceof NL2SQLError) {
-      const message = isProduction ? error.toUserMessage() : maskSensitiveInfo(error.message);
+      const message = isProduction
+        ? error.toUserMessage()
+        : maskSensitiveInfo(error.message);
       console.error(chalk.red('오류:'), message);
     } else {
       const message = getErrorMessage(error);

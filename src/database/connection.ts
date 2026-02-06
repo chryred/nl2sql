@@ -136,9 +136,7 @@ export async function testConnection(knexInstance: Knex): Promise<boolean> {
     // Oracle uses 'SELECT 1 FROM DUAL'
     const clientConfig = knexInstance.client.config as { client?: string };
     const testQuery =
-      clientConfig.client === 'oracledb'
-        ? 'SELECT 1 FROM DUAL'
-        : 'SELECT 1';
+      clientConfig.client === 'oracledb' ? 'SELECT 1 FROM DUAL' : 'SELECT 1';
     await knexInstance.raw(testQuery);
     return true;
   } catch {

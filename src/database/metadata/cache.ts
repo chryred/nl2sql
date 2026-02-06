@@ -79,10 +79,16 @@ export async function initializeMetadataCache(
       const queryConfig = loadMetadataQueries(dbType);
 
       // 메타데이터 스키마 존재 여부 확인
-      const schemaExists = await checkMetadataSchemaExists(knex, dbType, queryConfig.metadataSchema);
+      const schemaExists = await checkMetadataSchemaExists(
+        knex,
+        dbType,
+        queryConfig.metadataSchema
+      );
 
       if (!schemaExists) {
-        logger.warn(`Metadata schema '${queryConfig.metadataSchema}' not found. Using empty cache.`);
+        logger.warn(
+          `Metadata schema '${queryConfig.metadataSchema}' not found. Using empty cache.`
+        );
         cacheInstance = createEmptyCache(dbType);
         return cacheInstance;
       }
@@ -188,7 +194,7 @@ async function checkMetadataSchemaExists(
 
     const result = await knex.raw(query);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    const rows = dbType === 'oracle' ? result : (result.rows || result);
+    const rows = dbType === 'oracle' ? result : result.rows || result;
     return Array.isArray(rows) ? rows.length > 0 : false;
   } catch {
     return false;
@@ -238,57 +244,95 @@ async function safeQuery<T>(
 }
 
 // 각 메타데이터 테이블 로드 함수들
-async function loadRelationships(knex: Knex, config: MetadataQueryConfig): Promise<TableRelationship[]> {
+async function loadRelationships(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<TableRelationship[]> {
   const { sql, mapping } = config.queries.relationships;
   return safeQuery<TableRelationship>(knex, sql, mapping, 'relationships');
 }
 
-async function loadNamingConventions(knex: Knex, config: MetadataQueryConfig): Promise<NamingConvention[]> {
+async function loadNamingConventions(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<NamingConvention[]> {
   const { sql, mapping } = config.queries.namingConventions;
   return safeQuery<NamingConvention>(knex, sql, mapping, 'naming_conventions');
 }
 
-async function loadCodeTables(knex: Knex, config: MetadataQueryConfig): Promise<CodeTable[]> {
+async function loadCodeTables(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<CodeTable[]> {
   const { sql, mapping } = config.queries.codeTables;
   return safeQuery<CodeTable>(knex, sql, mapping, 'code_tables');
 }
 
-async function loadColumnCodeMappings(knex: Knex, config: MetadataQueryConfig): Promise<ColumnCodeMapping[]> {
+async function loadColumnCodeMappings(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<ColumnCodeMapping[]> {
   const { sql, mapping } = config.queries.columnCodeMappings;
-  return safeQuery<ColumnCodeMapping>(knex, sql, mapping, 'column_code_mappings');
+  return safeQuery<ColumnCodeMapping>(
+    knex,
+    sql,
+    mapping,
+    'column_code_mappings'
+  );
 }
 
-async function loadCodeAliases(knex: Knex, config: MetadataQueryConfig): Promise<CodeAlias[]> {
+async function loadCodeAliases(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<CodeAlias[]> {
   const { sql, mapping } = config.queries.codeAliases;
   return safeQuery<CodeAlias>(knex, sql, mapping, 'code_aliases');
 }
 
-async function loadGlossaryTerms(knex: Knex, config: MetadataQueryConfig): Promise<GlossaryTerm[]> {
+async function loadGlossaryTerms(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<GlossaryTerm[]> {
   const { sql, mapping } = config.queries.glossaryTerms;
   return safeQuery<GlossaryTerm>(knex, sql, mapping, 'glossary_terms');
 }
 
-async function loadGlossaryAliases(knex: Knex, config: MetadataQueryConfig): Promise<GlossaryAlias[]> {
+async function loadGlossaryAliases(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<GlossaryAlias[]> {
   const { sql, mapping } = config.queries.glossaryAliases;
   return safeQuery<GlossaryAlias>(knex, sql, mapping, 'glossary_aliases');
 }
 
-async function loadGlossaryContexts(knex: Knex, config: MetadataQueryConfig): Promise<GlossaryContext[]> {
+async function loadGlossaryContexts(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<GlossaryContext[]> {
   const { sql, mapping } = config.queries.glossaryContexts;
   return safeQuery<GlossaryContext>(knex, sql, mapping, 'glossary_contexts');
 }
 
-async function loadQueryPatterns(knex: Knex, config: MetadataQueryConfig): Promise<QueryPattern[]> {
+async function loadQueryPatterns(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<QueryPattern[]> {
   const { sql, mapping } = config.queries.queryPatterns;
   return safeQuery<QueryPattern>(knex, sql, mapping, 'query_patterns');
 }
 
-async function loadPatternParameters(knex: Knex, config: MetadataQueryConfig): Promise<PatternParameter[]> {
+async function loadPatternParameters(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<PatternParameter[]> {
   const { sql, mapping } = config.queries.patternParameters;
   return safeQuery<PatternParameter>(knex, sql, mapping, 'pattern_parameters');
 }
 
-async function loadPatternKeywords(knex: Knex, config: MetadataQueryConfig): Promise<PatternKeyword[]> {
+async function loadPatternKeywords(
+  knex: Knex,
+  config: MetadataQueryConfig
+): Promise<PatternKeyword[]> {
   const { sql, mapping } = config.queries.patternKeywords;
   return safeQuery<PatternKeyword>(knex, sql, mapping, 'pattern_keywords');
 }

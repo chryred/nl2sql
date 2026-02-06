@@ -22,8 +22,15 @@ import type { Config } from '../config/index.js';
 import { createAIClient, type AIProvider } from '../ai/client-factory.js';
 import { buildPrompt } from '../ai/prompt-builder.js';
 import { parseSQL, validateSQL } from '../ai/response-parser.js';
-import { extractSchema, type SchemaInfo, type TableInfo } from '../database/schema-extractor.js';
-import { getMetadataCache, initializeMetadataCache } from '../database/metadata/index.js';
+import {
+  extractSchema,
+  type SchemaInfo,
+  type TableInfo,
+} from '../database/schema-extractor.js';
+import {
+  getMetadataCache,
+  initializeMetadataCache,
+} from '../database/metadata/index.js';
 import type { MetadataCache } from '../database/metadata/types.js';
 
 /**
@@ -150,7 +157,10 @@ export class NL2SQLEngine {
 
     // 캐시가 없으면 초기화 시도
     try {
-      return await initializeMetadataCache(this.knex, this.config.database.type);
+      return await initializeMetadataCache(
+        this.knex,
+        this.config.database.type
+      );
     } catch {
       // 메타데이터 로드 실패 시 null 반환 (graceful degradation)
       return null;
@@ -238,36 +248,40 @@ export class NL2SQLEngine {
     const result: any = await this.knex.raw(sql);
 
     // 1. MySQL 대응
-    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
-        return result[0];
+    if (
+      Array.isArray(result) &&
+      result.length > 0 &&
+      Array.isArray(result[0])
+    ) {
+      return result[0];
     }
     // 2. PostgreSQL 대응
     if (result && typeof result === 'object' && 'rows' in result) {
-        return Array.isArray(result.rows) ? result.rows : [];
+      return Array.isArray(result.rows) ? result.rows : [];
     }
     // 3. Oracle: 직접 배열 반환 대응
     if (Array.isArray(result)) {
-        return result;
+      return result;
     }
     // 4. Oracle: ResultSet(커서) 특수 상황 대응
     if (result && typeof result === 'object' && 'resultSet' in result) {
-        const rows: unknown[] = [];
-        const rs = result.resultSet;
+      const rows: unknown[] = [];
+      const rs = result.resultSet;
 
-        try {
-            let row;
-            // 한 줄씩 읽어서 rows 배열에 담기
-            while ((row = await rs.getRow())) {
-                rows.push(row);
-            }
-            return rows;
-        } catch (error) {
-            console.error('ResultSet 처리 중 오류 발생:', error);
-            throw error;
-        } finally {
-            // [중요] 데이터 추출이 끝나면 반드시 커서를 닫아 리소스 해제
-            await rs.close();
+      try {
+        let row;
+        // 한 줄씩 읽어서 rows 배열에 담기
+        while ((row = await rs.getRow())) {
+          rows.push(row);
         }
+        return rows;
+      } catch (error) {
+        console.error('ResultSet 처리 중 오류 발생:', error);
+        throw error;
+      } finally {
+        // [중요] 데이터 추출이 끝나면 반드시 커서를 닫아 리소스 해제
+        await rs.close();
+      }
     }
     return [];
   }
@@ -294,7 +308,10 @@ export class NL2SQLEngine {
    * const result2 = await engine.process('사용자 수 조회', true);
    * console.log(result2.executionResult);
    */
-  async process(naturalLanguageQuery: string, execute = false): Promise<NL2SQLResult> {
+  async process(
+    naturalLanguageQuery: string,
+    execute = false
+  ): Promise<NL2SQLResult> {
     const schema = await this.getSchema();
     const sql = await this.generateSQL(naturalLanguageQuery);
 

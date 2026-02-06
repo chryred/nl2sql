@@ -38,29 +38,69 @@ export interface InputValidationOptions {
  */
 const PROMPT_INJECTION_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   // 역할 변경 시도
-  { pattern: /ignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)/i, reason: 'Prompt injection: ignore instructions pattern' },
-  { pattern: /disregard\s+(all\s+)?(previous|above|prior)/i, reason: 'Prompt injection: disregard pattern' },
-  { pattern: /forget\s+(everything|all|your)\s+(you|instructions?|training)/i, reason: 'Prompt injection: forget instructions pattern' },
+  {
+    pattern:
+      /ignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)/i,
+    reason: 'Prompt injection: ignore instructions pattern',
+  },
+  {
+    pattern: /disregard\s+(all\s+)?(previous|above|prior)/i,
+    reason: 'Prompt injection: disregard pattern',
+  },
+  {
+    pattern: /forget\s+(everything|all|your)\s+(you|instructions?|training)/i,
+    reason: 'Prompt injection: forget instructions pattern',
+  },
 
   // 시스템 프롬프트 추출 시도
-  { pattern: /show\s+(me\s+)?(your|the)\s+(system\s+)?prompt/i, reason: 'Prompt injection: show prompt pattern' },
-  { pattern: /reveal\s+(your|the)\s+(system\s+)?prompt/i, reason: 'Prompt injection: reveal prompt pattern' },
-  { pattern: /what\s+(is|are)\s+your\s+(system\s+)?(instructions?|prompts?)/i, reason: 'Prompt injection: extract instructions pattern' },
+  {
+    pattern: /show\s+(me\s+)?(your|the)\s+(system\s+)?prompt/i,
+    reason: 'Prompt injection: show prompt pattern',
+  },
+  {
+    pattern: /reveal\s+(your|the)\s+(system\s+)?prompt/i,
+    reason: 'Prompt injection: reveal prompt pattern',
+  },
+  {
+    pattern: /what\s+(is|are)\s+your\s+(system\s+)?(instructions?|prompts?)/i,
+    reason: 'Prompt injection: extract instructions pattern',
+  },
 
   // 역할 재정의 시도
-  { pattern: /you\s+are\s+now\s+(a|an|the)/i, reason: 'Prompt injection: role redefinition pattern' },
-  { pattern: /act\s+as\s+(if\s+you\s+are|a|an)/i, reason: 'Prompt injection: role change pattern' },
-  { pattern: /pretend\s+(you\s+are|to\s+be)/i, reason: 'Prompt injection: pretend pattern' },
+  {
+    pattern: /you\s+are\s+now\s+(a|an|the)/i,
+    reason: 'Prompt injection: role redefinition pattern',
+  },
+  {
+    pattern: /act\s+as\s+(if\s+you\s+are|a|an)/i,
+    reason: 'Prompt injection: role change pattern',
+  },
+  {
+    pattern: /pretend\s+(you\s+are|to\s+be)/i,
+    reason: 'Prompt injection: pretend pattern',
+  },
 
   // 제한 해제 시도
-  { pattern: /bypass\s+(your\s+)?(restrictions?|limitations?|filters?)/i, reason: 'Prompt injection: bypass restrictions pattern' },
+  {
+    pattern: /bypass\s+(your\s+)?(restrictions?|limitations?|filters?)/i,
+    reason: 'Prompt injection: bypass restrictions pattern',
+  },
   { pattern: /jailbreak/i, reason: 'Prompt injection: jailbreak keyword' },
   { pattern: /DAN\s+mode/i, reason: 'Prompt injection: DAN mode pattern' },
 
   // 코드 인젝션 시도
-  { pattern: /```\s*system/i, reason: 'Prompt injection: system code block pattern' },
-  { pattern: /\[\[system\]\]/i, reason: 'Prompt injection: system tag pattern' },
-  { pattern: /<\s*system\s*>/i, reason: 'Prompt injection: system XML tag pattern' },
+  {
+    pattern: /```\s*system/i,
+    reason: 'Prompt injection: system code block pattern',
+  },
+  {
+    pattern: /\[\[system\]\]/i,
+    reason: 'Prompt injection: system tag pattern',
+  },
+  {
+    pattern: /<\s*system\s*>/i,
+    reason: 'Prompt injection: system XML tag pattern',
+  },
 ];
 
 /**

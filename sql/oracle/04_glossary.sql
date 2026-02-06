@@ -13,11 +13,7 @@ CREATE TABLE glossary_terms (
     term_code               VARCHAR2(100) NOT NULL,
 
     term                    VARCHAR2(200) NOT NULL,
-    category                VARCHAR2(50)
-                            CONSTRAINT chk_glossary_category CHECK (category IS NULL OR category IN (
-                                'CUSTOMER', 'ORDER', 'PRODUCT', 'DATE',
-                                'STATUS', 'METRIC', 'GENERAL'
-                            )),
+    category                VARCHAR2(50),
 
     -- Oracle용 SQL 조건이 기본
     sql_condition           CLOB NOT NULL,
@@ -40,6 +36,10 @@ CREATE TABLE glossary_terms (
     updated_by              VARCHAR2(100),
 
     CONSTRAINT uk_glossary_term_code UNIQUE (term_code),
+    CONSTRAINT chk_glossary_category CHECK (category IS NULL OR category IN (
+        'CUSTOMER', 'ORDER', 'PRODUCT', 'DATE',
+        'STATUS', 'METRIC', 'GENERAL'
+    )),
     CONSTRAINT chk_glossary_active CHECK (is_active IN (0, 1))
 );
 
@@ -62,15 +62,15 @@ CREATE TABLE glossary_aliases (
 
     alias                   VARCHAR2(200) NOT NULL,
     locale                  VARCHAR2(10) DEFAULT 'ko',
-    match_type              VARCHAR2(20) DEFAULT 'EXACT' NOT NULL
-                            CONSTRAINT chk_alias_match_type CHECK (match_type IN (
-                                'EXACT', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'REGEX'
-                            )),
+    match_type              VARCHAR2(20) DEFAULT 'EXACT' NOT NULL,
 
     is_active               NUMBER(1) DEFAULT 1 NOT NULL,
     created_at              TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
 
     CONSTRAINT uk_glossary_alias UNIQUE (term_code, alias, locale),
+    CONSTRAINT chk_alias_match_type CHECK (match_type IN (
+        'EXACT', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'REGEX'
+    )),
     CONSTRAINT chk_g_alias_active CHECK (is_active IN (0, 1)),
     CONSTRAINT fk_glossary_alias_term
         FOREIGN KEY (term_code) REFERENCES glossary_terms(term_code)

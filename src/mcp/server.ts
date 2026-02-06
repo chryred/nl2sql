@@ -12,8 +12,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { dbTestConnection, dbTestInputSchema } from './tools/db-test.js';
 import { dbConnect, dbConnectInputSchema } from './tools/db-connect.js';
-import { nl2sqlSchema, nl2sqlSchemaInputSchema } from './tools/nl2sql-schema.js';
-import { nl2sqlQuery, nl2sqlQueryInputSchema, formatAsText } from './tools/nl2sql-query.js';
+import {
+  nl2sqlSchema,
+  nl2sqlSchemaInputSchema,
+} from './tools/nl2sql-schema.js';
+import {
+  nl2sqlQuery,
+  nl2sqlQueryInputSchema,
+  formatAsText,
+} from './tools/nl2sql-query.js';
 import {
   cacheStatus,
   cacheStatusInputSchema,
@@ -36,7 +43,8 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     'db_test_connection',
     {
-      description: 'Test database connection using environment variables. No parameters required.',
+      description:
+        'Test database connection using environment variables. No parameters required.',
       inputSchema: dbTestInputSchema,
     },
     async () => {
@@ -77,7 +85,8 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     'nl2sql_schema',
     {
-      description: 'Get database schema information. Supports json, prompt, and summary formats.',
+      description:
+        'Get database schema information. Supports json, prompt, and summary formats.',
       inputSchema: nl2sqlSchemaInputSchema,
     },
     async (args) => {
@@ -112,7 +121,10 @@ export function createMcpServer(): McpServer {
       const input = nl2sqlQueryInputSchema.parse(args);
       const result = await nl2sqlQuery(input);
 
-      const text = input.format === 'text' ? formatAsText(result) : JSON.stringify(result, null, 2);
+      const text =
+        input.format === 'text'
+          ? formatAsText(result)
+          : JSON.stringify(result, null, 2);
 
       return {
         content: [
@@ -129,7 +141,8 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     'cache_status',
     {
-      description: 'Get metadata cache status including initialization state and item counts.',
+      description:
+        'Get metadata cache status including initialization state and item counts.',
       inputSchema: cacheStatusInputSchema,
     },
     () => {

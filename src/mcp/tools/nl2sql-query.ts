@@ -10,7 +10,10 @@
 
 import { z } from 'zod';
 import { getConfig, validateConfig, type Config } from '../../config/index.js';
-import { createConnection, closeConnection } from '../../database/connection.js';
+import {
+  createConnection,
+  closeConnection,
+} from '../../database/connection.js';
 import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
 import { validateNaturalLanguageInput } from '../../utils/input-validator.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
@@ -20,8 +23,14 @@ import { maskSensitiveInfo } from '../../errors/index.js';
  */
 export const nl2sqlQueryInputSchema = z.object({
   query: z.string().min(1).describe('Natural language query to convert to SQL'),
-  execute: z.boolean().default(false).describe('Whether to execute the generated SQL (default: false)'),
-  format: z.enum(['json', 'text']).default('json').describe('Output format (default: json)'),
+  execute: z
+    .boolean()
+    .default(false)
+    .describe('Whether to execute the generated SQL (default: false)'),
+  format: z
+    .enum(['json', 'text'])
+    .default('json')
+    .describe('Output format (default: json)'),
 });
 
 export type Nl2sqlQueryInput = z.infer<typeof nl2sqlQueryInputSchema>;
@@ -44,7 +53,9 @@ export interface Nl2sqlQueryOutput {
  * @param input - 자연어 쿼리 및 옵션
  * @returns 변환 결과
  */
-export async function nl2sqlQuery(input: Nl2sqlQueryInput): Promise<Nl2sqlQueryOutput> {
+export async function nl2sqlQuery(
+  input: Nl2sqlQueryInput
+): Promise<Nl2sqlQueryOutput> {
   // 입력 검증
   const validation = validateNaturalLanguageInput(input.query);
   if (!validation.valid) {
@@ -60,7 +71,8 @@ export async function nl2sqlQuery(input: Nl2sqlQueryInput): Promise<Nl2sqlQueryO
     config = getConfig();
     validateConfig(config);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown configuration error';
+    const message =
+      error instanceof Error ? error.message : 'Unknown configuration error';
     return {
       success: false,
       error: `Configuration error: ${maskSensitiveInfo(message)}`,

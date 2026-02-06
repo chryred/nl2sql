@@ -18,7 +18,12 @@ import { maskSensitiveInfo } from '../../errors/index.js';
 export const dbConnectInputSchema = z.object({
   type: z.enum(['postgresql', 'mysql', 'oracle']).describe('Database type'),
   host: z.string().min(1).describe('Database host'),
-  port: z.number().int().positive().optional().describe('Database port (default: auto)'),
+  port: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Database port (default: auto)'),
   user: z.string().min(1).describe('Database user'),
   password: z.string().describe('Database password'),
   database: z.string().min(1).describe('Database name'),
@@ -101,7 +106,9 @@ function getConnectionConfig(input: DbConnectInput): Knex.Config['connection'] {
  * @param input - 연결 자격 증명
  * @returns 연결 테스트 결과
  */
-export async function dbConnect(input: DbConnectInput): Promise<DbConnectOutput> {
+export async function dbConnect(
+  input: DbConnectInput
+): Promise<DbConnectOutput> {
   const port = input.port || getDefaultPort(input.type);
   let connection: Knex | null = null;
 
@@ -119,7 +126,8 @@ export async function dbConnect(input: DbConnectInput): Promise<DbConnectOutput>
     });
 
     // 연결 테스트 쿼리
-    const testQuery = input.type === 'oracle' ? 'SELECT 1 FROM DUAL' : 'SELECT 1';
+    const testQuery =
+      input.type === 'oracle' ? 'SELECT 1 FROM DUAL' : 'SELECT 1';
     await connection.raw(testQuery);
 
     return {

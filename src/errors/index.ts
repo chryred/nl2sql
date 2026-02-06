@@ -124,7 +124,10 @@ export class SQLValidationError extends NL2SQLError {
  * 위험한 SQL 패턴이 감지되었을 때 발생합니다.
  */
 export class SQLSecurityError extends NL2SQLError {
-  constructor(message: string, public readonly pattern?: string) {
+  constructor(
+    message: string,
+    public readonly pattern?: string
+  ) {
     super(
       message,
       'SQL_SECURITY_VIOLATION',
@@ -163,7 +166,10 @@ export class AIProviderError extends NL2SQLError {
  * 잘못된 설정 또는 누락된 설정이 있을 때 발생합니다.
  */
 export class ConfigurationError extends NL2SQLError {
-  constructor(message: string, public readonly configKey?: string) {
+  constructor(
+    message: string,
+    public readonly configKey?: string
+  ) {
     super(
       message,
       'CONFIGURATION_ERROR',
@@ -180,7 +186,10 @@ export class ConfigurationError extends NL2SQLError {
  * 사용자 입력이 유효하지 않을 때 발생합니다.
  */
 export class InputValidationError extends NL2SQLError {
-  constructor(message: string, public readonly input?: string) {
+  constructor(
+    message: string,
+    public readonly input?: string
+  ) {
     super(message, 'INPUT_VALIDATION_FAILED', message); // 입력 에러는 사용자에게 그대로 표시
     this.name = 'InputValidationError';
   }
@@ -193,7 +202,10 @@ export class InputValidationError extends NL2SQLError {
  * 데이터베이스 스키마 추출 실패 시 발생합니다.
  */
 export class SchemaExtractionError extends NL2SQLError {
-  constructor(message: string, public readonly tableName?: string) {
+  constructor(
+    message: string,
+    public readonly tableName?: string
+  ) {
     super(
       message,
       'SCHEMA_EXTRACTION_FAILED',
@@ -247,10 +259,7 @@ export function maskSensitiveInfo(message: string): string {
   );
 
   // 비밀번호 패턴 마스킹 (password=xxx 형식)
-  masked = masked.replace(
-    /(password\s*[=:]\s*)['"]?[^'"\s]+['"]?/gi,
-    '$1***'
-  );
+  masked = masked.replace(/(password\s*[=:]\s*)['"]?[^'"\s]+['"]?/gi, '$1***');
 
   // 포트 번호는 유지 (디버깅에 유용)
 

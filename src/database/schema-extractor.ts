@@ -19,13 +19,14 @@ import type { Config } from '../config/index.js';
 import { extractPostgresSchema } from './adapters/postgresql.js';
 import { extractMysqlSchema } from './adapters/mysql.js';
 import { extractOracleSchema } from './adapters/oracle.js';
-import type {
-  SchemaInfo,
-  ExtendedTableInfo,
-} from './types.js';
+import type { SchemaInfo, ExtendedTableInfo } from './types.js';
 
 // Re-export types for backward compatibility
-export type { SchemaInfo, ExtendedTableInfo as TableInfo, ExtendedColumnInfo as ColumnInfo } from './types.js';
+export type {
+  SchemaInfo,
+  ExtendedTableInfo as TableInfo,
+  ExtendedColumnInfo as ColumnInfo,
+} from './types.js';
 
 /**
  * 데이터베이스 스키마 정보를 추출합니다.
@@ -44,7 +45,10 @@ export type { SchemaInfo, ExtendedTableInfo as TableInfo, ExtendedColumnInfo as 
  * const schema = await extractSchema(knex, config);
  * console.log(`Found ${schema.tables.length} tables`);
  */
-export async function extractSchema(knex: Knex, config: Config): Promise<SchemaInfo> {
+export async function extractSchema(
+  knex: Knex,
+  config: Config
+): Promise<SchemaInfo> {
   switch (config.database.type) {
     case 'mysql':
       return extractMysqlSchema(knex);
@@ -75,9 +79,13 @@ export async function extractSchema(knex: Knex, config: Config): Promise<SchemaI
  * //   - id: integer [PK, NOT NULL]
  * //   - email: varchar [NOT NULL]
  */
-export function formatSchemaForPrompt(schema: SchemaInfo | ExtendedTableInfo[]): string {
+export function formatSchemaForPrompt(
+  schema: SchemaInfo | ExtendedTableInfo[]
+): string {
   const tables = Array.isArray(schema) ? schema : schema.tables;
-  const recentQueries = Array.isArray(schema) ? undefined : schema.recentQueries;
+  const recentQueries = Array.isArray(schema)
+    ? undefined
+    : schema.recentQueries;
   const lines: string[] = [];
 
   for (const table of tables) {
@@ -91,8 +99,12 @@ export function formatSchemaForPrompt(schema: SchemaInfo | ExtendedTableInfo[]):
       const flags: string[] = [];
       if (col.isPrimaryKey) flags.push('PK');
       if (col.isForeignKey && col.references) {
-        const refSchema = col.references.schema ? `${col.references.schema}.` : '';
-        flags.push(`FK -> ${refSchema}${col.references.table}.${col.references.column}`);
+        const refSchema = col.references.schema
+          ? `${col.references.schema}.`
+          : '';
+        flags.push(
+          `FK -> ${refSchema}${col.references.table}.${col.references.column}`
+        );
       }
       if (!col.nullable) flags.push('NOT NULL');
 
@@ -117,9 +129,8 @@ export function formatSchemaForPrompt(schema: SchemaInfo | ExtendedTableInfo[]):
   if (recentQueries && recentQueries.length > 0) {
     lines.push('Recent Query Patterns:');
     for (const q of recentQueries.slice(0, 5)) {
-      const truncatedQuery = q.query.length > 100
-        ? q.query.substring(0, 100) + '...'
-        : q.query;
+      const truncatedQuery =
+        q.query.length > 100 ? q.query.substring(0, 100) + '...' : q.query;
       lines.push(`  - (${q.callCount} calls) ${truncatedQuery}`);
     }
     lines.push('');
@@ -153,7 +164,9 @@ export function formatIndexesForPrompt(tables: ExtendedTableInfo[]): string {
       const schemaPrefix = table.schemaName ? `${table.schemaName}.` : '';
       for (const idx of table.indexes) {
         const uniqueStr = idx.unique ? ' (UNIQUE)' : '';
-        lines.push(`  ${schemaPrefix}${table.name}.${idx.name}: [${idx.columns.join(', ')}]${uniqueStr}`);
+        lines.push(
+          `  ${schemaPrefix}${table.name}.${idx.name}: [${idx.columns.join(', ')}]${uniqueStr}`
+        );
       }
     }
   }

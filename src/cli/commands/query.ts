@@ -23,7 +23,10 @@ import type { Config } from '../../config/index.js';
 import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
 import { validateNaturalLanguageInput } from '../../utils/input-validator.js';
 import { InputValidationError } from '../../errors/index.js';
-import { formatResults, type OutputFormat } from '../formatters/result-formatter.js';
+import {
+  formatResults,
+  type OutputFormat,
+} from '../formatters/result-formatter.js';
 
 /**
  * 쿼리 명령어 옵션 인터페이스
@@ -109,7 +112,9 @@ export async function queryCommand(
   const schemaSpinner = ora('데이터베이스 스키마 추출 중...').start();
   try {
     const schema = await engine.getSchema();
-    schemaSpinner.succeed(`스키마 추출 완료 (${schema.tables.length}개 테이블)`);
+    schemaSpinner.succeed(
+      `스키마 추출 완료 (${schema.tables.length}개 테이블)`
+    );
   } catch (error) {
     schemaSpinner.fail('스키마 추출 실패');
     throw error;

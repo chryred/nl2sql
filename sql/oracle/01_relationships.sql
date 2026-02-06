@@ -42,20 +42,9 @@ CREATE TABLE table_relationships (
     -- ========================================================================
     -- 관계 메타데이터
     -- ========================================================================
-    relationship_type       VARCHAR2(20) DEFAULT 'MANY_TO_ONE' NOT NULL
-                            CONSTRAINT chk_rel_type CHECK (relationship_type IN (
-                                'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_ONE', 'MANY_TO_MANY'
-                            )),
-
-    confidence_level        VARCHAR2(10) DEFAULT 'HIGH' NOT NULL
-                            CONSTRAINT chk_conf_level CHECK (confidence_level IN (
-                                'HIGH', 'MEDIUM', 'LOW'
-                            )),
-
-    join_hint               VARCHAR2(20)
-                            CONSTRAINT chk_join_hint CHECK (join_hint IS NULL OR join_hint IN (
-                                'INNER', 'LEFT', 'RIGHT'
-                            )),
+    relationship_type       VARCHAR2(20) DEFAULT 'MANY_TO_ONE' NOT NULL,
+    confidence_level        VARCHAR2(10) DEFAULT 'HIGH' NOT NULL,
+    join_hint               VARCHAR2(20),
 
     -- ========================================================================
     -- 다형성 관계 지원
@@ -72,8 +61,7 @@ CREATE TABLE table_relationships (
     -- ========================================================================
     -- 상태 및 감사
     -- ========================================================================
-    is_active               NUMBER(1) DEFAULT 1 NOT NULL
-                            CONSTRAINT chk_rel_active CHECK (is_active IN (0, 1)),
+    is_active               NUMBER(1) DEFAULT 1 NOT NULL,
     created_at              TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
     created_by              VARCHAR2(100),
     updated_at              TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
@@ -83,7 +71,17 @@ CREATE TABLE table_relationships (
     -- 제약 조건
     -- ========================================================================
     CONSTRAINT uk_table_rel UNIQUE (source_schema, source_table, source_column,
-                                    target_schema, target_table, target_column)
+                                    target_schema, target_table, target_column),
+    CONSTRAINT chk_rel_type CHECK (relationship_type IN (
+        'ONE_TO_ONE', 'ONE_TO_MANY', 'MANY_TO_ONE', 'MANY_TO_MANY'
+    )),
+    CONSTRAINT chk_conf_level CHECK (confidence_level IN (
+        'HIGH', 'MEDIUM', 'LOW'
+    )),
+    CONSTRAINT chk_join_hint CHECK (join_hint IS NULL OR join_hint IN (
+        'INNER', 'LEFT', 'RIGHT'
+    )),
+    CONSTRAINT chk_rel_active CHECK (is_active IN (0, 1))
 );
 
 -- 인덱스

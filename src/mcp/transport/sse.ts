@@ -28,7 +28,10 @@ export interface SSEServerOptions {
 /**
  * 요청을 인증합니다.
  */
-function authenticateRequest(req: IncomingMessage, authToken?: string): boolean {
+function authenticateRequest(
+  req: IncomingMessage,
+  authToken?: string
+): boolean {
   if (!authToken) {
     return true; // 토큰이 설정되지 않으면 인증 통과
   }
@@ -52,7 +55,10 @@ function authenticateRequest(req: IncomingMessage, authToken?: string): boolean 
 function setCorsHeaders(res: ServerResponse, origin: string): void {
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Mcp-Session-Id'
+  );
   res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 }
 
@@ -87,7 +93,9 @@ export function startSSEServer(
     // 헬스체크 엔드포인트
     if (url.pathname === '/health' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
+      res.end(
+        JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() })
+      );
       return;
     }
 
@@ -138,7 +146,9 @@ export function startSSEServer(
         } else {
           // GET 요청이지만 세션이 없는 경우
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Session ID required for GET requests' }));
+          res.end(
+            JSON.stringify({ error: 'Session ID required for GET requests' })
+          );
         }
       } catch (error) {
         console.error('[MCP] Request handling error:', error);
@@ -160,7 +170,9 @@ export function startSSEServer(
     console.log(`[MCP] Endpoints:`);
     console.log(`  - GET  /health  - Health check`);
     console.log(`  - POST /mcp     - MCP endpoint (initialize session)`);
-    console.log(`  - GET  /mcp     - MCP endpoint (SSE stream, requires session)`);
+    console.log(
+      `  - GET  /mcp     - MCP endpoint (SSE stream, requires session)`
+    );
     if (authToken) {
       console.log(`[MCP] Authentication: Bearer token required`);
     }

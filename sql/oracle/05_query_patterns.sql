@@ -13,11 +13,7 @@ CREATE TABLE query_patterns (
     pattern_code            VARCHAR2(100) NOT NULL,
 
     pattern_name            VARCHAR2(200) NOT NULL,
-    category                VARCHAR2(50)
-                            CONSTRAINT chk_pattern_category CHECK (category IS NULL OR category IN (
-                                'AGGREGATION', 'REPORT', 'LOOKUP', 'ANALYSIS',
-                                'COMPARISON', 'TREND', 'RANKING', 'GENERAL'
-                            )),
+    category                VARCHAR2(50),
 
     -- Oracle용 템플릿이 기본
     sql_template            CLOB NOT NULL,
@@ -28,8 +24,7 @@ CREATE TABLE query_patterns (
     required_columns        CLOB,        -- JSON 형태
     required_joins          CLOB,        -- JSON 형태
 
-    match_score_threshold   NUMBER DEFAULT 70 NOT NULL
-                            CONSTRAINT chk_match_score CHECK (match_score_threshold BETWEEN 0 AND 100),
+    match_score_threshold   NUMBER DEFAULT 70 NOT NULL,
     priority                NUMBER DEFAULT 100 NOT NULL,
 
     description             CLOB NOT NULL,
@@ -47,6 +42,11 @@ CREATE TABLE query_patterns (
     updated_by              VARCHAR2(100),
 
     CONSTRAINT uk_pattern_code UNIQUE (pattern_code),
+    CONSTRAINT chk_pattern_category CHECK (category IS NULL OR category IN (
+        'AGGREGATION', 'REPORT', 'LOOKUP', 'ANALYSIS',
+        'COMPARISON', 'TREND', 'RANKING', 'GENERAL'
+    )),
+    CONSTRAINT chk_match_score CHECK (match_score_threshold BETWEEN 0 AND 100),
     CONSTRAINT chk_pattern_active CHECK (is_active IN (0, 1))
 );
 
@@ -68,11 +68,7 @@ CREATE TABLE pattern_parameters (
     pattern_code            VARCHAR2(100) NOT NULL,
 
     param_name              VARCHAR2(100) NOT NULL,
-    param_type              VARCHAR2(30) NOT NULL
-                            CONSTRAINT chk_param_type CHECK (param_type IN (
-                                'COLUMN', 'TABLE', 'VALUE', 'DATE',
-                                'NUMBER', 'EXPRESSION', 'CONDITION'
-                            )),
+    param_type              VARCHAR2(30) NOT NULL,
 
     is_required             NUMBER(1) DEFAULT 1 NOT NULL,
     default_value           CLOB,
@@ -88,6 +84,10 @@ CREATE TABLE pattern_parameters (
     is_active               NUMBER(1) DEFAULT 1 NOT NULL,
 
     CONSTRAINT uk_pattern_param UNIQUE (pattern_code, param_name),
+    CONSTRAINT chk_param_type CHECK (param_type IN (
+        'COLUMN', 'TABLE', 'VALUE', 'DATE',
+        'NUMBER', 'EXPRESSION', 'CONDITION'
+    )),
     CONSTRAINT chk_param_required CHECK (is_required IN (0, 1)),
     CONSTRAINT chk_param_active CHECK (is_active IN (0, 1)),
     CONSTRAINT fk_param_pattern
@@ -112,15 +112,15 @@ CREATE TABLE pattern_keywords (
 
     keyword                 VARCHAR2(100) NOT NULL,
     locale                  VARCHAR2(10) DEFAULT 'ko',
-    weight                  NUMBER DEFAULT 10 NOT NULL
-                            CONSTRAINT chk_kw_weight CHECK (weight BETWEEN 1 AND 100),
-    match_type              VARCHAR2(20) DEFAULT 'CONTAINS' NOT NULL
-                            CONSTRAINT chk_kw_match_type CHECK (match_type IN (
-                                'EXACT', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'REGEX'
-                            )),
+    weight                  NUMBER DEFAULT 10 NOT NULL,
+    match_type              VARCHAR2(20) DEFAULT 'CONTAINS' NOT NULL,
     is_required             NUMBER(1) DEFAULT 0 NOT NULL,
     is_active               NUMBER(1) DEFAULT 1 NOT NULL,
 
+    CONSTRAINT chk_kw_weight CHECK (weight BETWEEN 1 AND 100),
+    CONSTRAINT chk_kw_match_type CHECK (match_type IN (
+        'EXACT', 'CONTAINS', 'STARTS_WITH', 'ENDS_WITH', 'REGEX'
+    )),
     CONSTRAINT chk_kw_required CHECK (is_required IN (0, 1)),
     CONSTRAINT chk_kw_active CHECK (is_active IN (0, 1)),
     CONSTRAINT fk_kw_pattern

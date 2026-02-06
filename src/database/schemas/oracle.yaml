@@ -131,7 +131,7 @@ queries:
           WHEN 'C' THEN 'CHECK'
         END as constraint_type,
         LISTAGG(ucc.COLUMN_NAME, ',') WITHIN GROUP (ORDER BY ucc.POSITION) as columns,
-        uc.SEARCH_CONDITION as definition
+        uc.SEARCH_CONDITION_VC as definition
       FROM ALL_CONSTRAINTS uc
       JOIN ALL_CONS_COLUMNS ucc
         ON uc.CONSTRAINT_NAME = ucc.CONSTRAINT_NAME
@@ -139,7 +139,7 @@ queries:
       WHERE uc.OWNER = :schemaName
         AND uc.TABLE_NAME = :tableName
         AND uc.CONSTRAINT_TYPE IN ('P', 'R', 'U', 'C')
-      GROUP BY uc.CONSTRAINT_NAME, uc.CONSTRAINT_TYPE, uc.SEARCH_CONDITION
+      GROUP BY uc.CONSTRAINT_NAME, uc.CONSTRAINT_TYPE, uc.SEARCH_CONDITION_VC
       ORDER BY uc.CONSTRAINT_TYPE, uc.CONSTRAINT_NAME
     params:
       - schemaName

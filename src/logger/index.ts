@@ -98,7 +98,7 @@ export class Logger {
   constructor(config: LoggerConfig = {}) {
     this.level = config.level ?? parseLogLevel(process.env.LOG_LEVEL);
     this.timestamps = config.timestamps ?? true;
-    this.json = config.json ?? (process.env.LOG_FORMAT === 'json');
+    this.json = config.json ?? process.env.LOG_FORMAT === 'json';
     this.maskSensitive = config.maskSensitive ?? true;
   }
 
@@ -201,8 +201,7 @@ export class Logger {
       ...context,
     };
 
-    const output =
-      level >= LogLevel.ERROR ? console.error : console.log;
+    const output = level >= LogLevel.ERROR ? console.error : console.log;
     output(JSON.stringify(logObject));
   }
 
@@ -245,8 +244,7 @@ export class Logger {
 
     const fullMessage = `${timestamp}${levelStr} ${maskedMessage}${contextStr}${errorStr}`;
 
-    const output =
-      level >= LogLevel.ERROR ? console.error : console.log;
+    const output = level >= LogLevel.ERROR ? console.error : console.log;
     output(fullMessage);
   }
 

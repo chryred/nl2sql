@@ -162,22 +162,44 @@ export class SchemaLoader {
   private substituteParams(
     sql: string,
     params: Record<string, unknown>
-  ): { sql: string; bindings: unknown[] } {
+  ): { sql: string; bindings: unknown[] | Record<string, unknown> } {
+    if (this.dbType === 'oracle') {
+      // Oracle: use named bindings natively
+      const bindings: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(params)) {
+        const regex = new RegExp(`:${key}\\b`);
+        if (regex.test(sql)) {
+          bindings[key] = value;
+        }
+      }
+      return { sql, bindings };
+    }
+
+    // PostgreSQL/MySQL: replace named params with positional ? placeholders
     const bindings: unknown[] = [];
     let processedSql = sql;
 
-    // Replace named parameters with positional placeholders
-    for (const [key, value] of Object.entries(params)) {
-      const regex = new RegExp(`:${key}`, 'g');
-      const matches = processedSql.match(regex);
-      if (matches) {
-        for (const _match of matches) {
-          bindings.push(value);
-        }
-        // Use appropriate placeholder based on database type
-        const placeholder = this.dbType === 'oracle' ? `:${key}` : '?';
-        processedSql = processedSql.replace(regex, placeholder);
+    // Collect all :paramName occurrences in SQL appearance order
+    const paramRegex = /(?<!:):(\w+)/g;
+    let match;
+    const orderedOccurrences: string[] = [];
+
+    while ((match = paramRegex.exec(sql)) !== null) {
+      const paramName = match[1];
+      if (paramName in params) {
+        orderedOccurrences.push(paramName);
       }
+    }
+
+    // Build bindings in SQL occurrence order
+    for (const paramName of orderedOccurrences) {
+      bindings.push(params[paramName]);
+    }
+
+    // Replace named params with ?
+    for (const key of Object.keys(params)) {
+      const regex = new RegExp(`(?<!:):${key}\\b`, 'g');
+      processedSql = processedSql.replace(regex, '?');
     }
 
     return { sql: processedSql, bindings };
@@ -202,18 +224,42 @@ export class SchemaLoader {
     try {
       const result: unknown = await knex.raw(sql, bindings);
 
-      // Handle different database return formats
+      // 1. MySQL 대응
+      if (
+        Array.isArray(result) &&
+        result.length > 0 &&
+        Array.isArray(result[0])
+      ) {
+        return result[0];
+      }
+      // 2. PostgreSQL 대응
+      if (result && typeof result === 'object' && 'rows' in result) {
+        return Array.isArray(result.rows) ? result.rows : [];
+      }
+      // 3. Oracle: 직접 배열 반환 대응
       if (Array.isArray(result)) {
-        // MySQL returns [rows, fields]
-        const rows = result[0];
-        return Array.isArray(rows) ? (rows as T[]) : [];
+        return result;
       }
-      // PostgreSQL returns { rows: [...] }
-      if (typeof result === 'object' && result !== null && 'rows' in result) {
-        const { rows } = result as { rows: unknown[] };
-        return Array.isArray(rows) ? (rows as T[]) : [];
+      // 4. Oracle: ResultSet(커서) 특수 상황 대응
+      if (result && typeof result === 'object' && 'resultSet' in result) {
+        const rows: T[] = [];
+        const rs = result.resultSet as any;
+
+        try {
+          let row;
+          // 한 줄씩 읽어서 rows 배열에 담기
+          while ((row = await rs.getRow())) {
+            rows.push(row);
+          }
+          return rows;
+        } catch (error) {
+          console.error('ResultSet 처리 중 오류 발생:', error);
+          throw error;
+        } finally {
+          // [중요] 데이터 추출이 끝나면 반드시 커서를 닫아 리소스 해제
+          await rs.close();
+        }
       }
-      // Oracle returns array directly - but we need to handle it safely
       return [];
     } catch (error) {
       if (queryDef.optional) {
@@ -273,12 +319,20 @@ export class SchemaLoader {
         tableRow.comment) as string | undefined;
 
       if (!tableName) continue;
-
       // Get columns - 스키마 이름을 전달
-      const columns = await this.getColumns(knex, tableName, database, schemaName);
-
+      const columns = await this.getColumns(
+        knex,
+        tableName,
+        database,
+        schemaName
+      );
       // Get foreign keys and update columns
-      const fkMap = await this.getForeignKeys(knex, tableName, database, schemaName);
+      const fkMap = await this.getForeignKeys(
+        knex,
+        tableName,
+        database,
+        schemaName
+      );
       for (const col of columns) {
         const fkInfo = fkMap.get(col.name);
         if (fkInfo) {
@@ -288,10 +342,20 @@ export class SchemaLoader {
       }
 
       // Get constraints
-      const constraints = await this.getConstraints(knex, tableName, database, schemaName);
+      const constraints = await this.getConstraints(
+        knex,
+        tableName,
+        database,
+        schemaName
+      );
 
       // Get indexes
-      const indexes = await this.getIndexes(knex, tableName, database, schemaName);
+      const indexes = await this.getIndexes(
+        knex,
+        tableName,
+        database,
+        schemaName
+      );
 
       tables.push({
         schemaName: schemaName || undefined,
@@ -333,7 +397,8 @@ export class SchemaLoader {
 
     // PostgreSQL, Oracle의 경우 스키마 이름 전달
     if (schemaName) {
-      params.schemaName = this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
+      params.schemaName =
+        this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
     } else if (this.dbType === 'postgresql') {
       params.schemaName = 'public';
     }
@@ -342,7 +407,6 @@ export class SchemaLoader {
     if (this.dbType === 'oracle') {
       params.tableName = tableName.toUpperCase();
     }
-
     const result = await this.executeQuery<Record<string, unknown>>(
       knex,
       this.queries.queries.columns,
@@ -353,7 +417,9 @@ export class SchemaLoader {
       name: (row.column_name || row.COLUMN_NAME) as string,
       type: (row.data_type || row.DATA_TYPE) as string,
       nullable: (row.is_nullable || row.IS_NULLABLE) === 'YES',
-      defaultValue: (row.column_default || row.COLUMN_DEFAULT || row.DATA_DEFAULT) as string | null,
+      defaultValue: (row.column_default ||
+        row.COLUMN_DEFAULT ||
+        row.DATA_DEFAULT) as string | null,
       isPrimaryKey:
         row.is_primary_key === true ||
         row.is_primary_key === 1 ||
@@ -383,7 +449,8 @@ export class SchemaLoader {
     if (database) params.database = database;
 
     if (schemaName) {
-      params.schemaName = this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
+      params.schemaName =
+        this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
     } else if (this.dbType === 'postgresql') {
       params.schemaName = 'public';
     }
@@ -398,12 +465,19 @@ export class SchemaLoader {
       params
     );
 
-    const fkMap = new Map<string, { schema?: string; table: string; column: string }>();
+    const fkMap = new Map<
+      string,
+      { schema?: string; table: string; column: string }
+    >();
     for (const row of result) {
       const colName = (row.column_name || row.COLUMN_NAME) as string;
-      const refSchema = (row.foreign_schema_name || row.FOREIGN_SCHEMA_NAME) as string | undefined;
-      const refTable = (row.foreign_table_name || row.FOREIGN_TABLE_NAME) as string;
-      const refColumn = (row.foreign_column_name || row.FOREIGN_COLUMN_NAME) as string;
+      const refSchema = (row.foreign_schema_name || row.FOREIGN_SCHEMA_NAME) as
+        | string
+        | undefined;
+      const refTable = (row.foreign_table_name ||
+        row.FOREIGN_TABLE_NAME) as string;
+      const refColumn = (row.foreign_column_name ||
+        row.FOREIGN_COLUMN_NAME) as string;
       fkMap.set(colName, {
         schema: refSchema,
         table: refTable,
@@ -434,7 +508,8 @@ export class SchemaLoader {
     if (database) params.database = database;
 
     if (schemaName) {
-      params.schemaName = this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
+      params.schemaName =
+        this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
     } else if (this.dbType === 'postgresql') {
       params.schemaName = 'public';
     }
@@ -463,7 +538,8 @@ export class SchemaLoader {
 
       return {
         name: (row.constraint_name || row.CONSTRAINT_NAME) as string,
-        type: (row.constraint_type || row.CONSTRAINT_TYPE) as ConstraintInfo['type'],
+        type: (row.constraint_type ||
+          row.CONSTRAINT_TYPE) as ConstraintInfo['type'],
         columns,
         definition: (row.definition || row.DEFINITION) as string | undefined,
       };
@@ -490,7 +566,8 @@ export class SchemaLoader {
     if (database) params.database = database;
 
     if (schemaName) {
-      params.schemaName = this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
+      params.schemaName =
+        this.dbType === 'oracle' ? schemaName.toUpperCase() : schemaName;
     } else if (this.dbType === 'postgresql') {
       params.schemaName = 'public';
     }
@@ -557,7 +634,9 @@ export class SchemaLoader {
 
       return result.map((row) => ({
         query: (row.query || row.QUERY || row.sql_text) as string,
-        callCount: Number(row.call_count || row.CALL_COUNT || row.executions || 0),
+        callCount: Number(
+          row.call_count || row.CALL_COUNT || row.executions || 0
+        ),
         avgTimeMs: Number(row.avg_time_ms || row.AVG_TIME_MS || 0),
       }));
     } catch {

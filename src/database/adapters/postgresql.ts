@@ -16,7 +16,11 @@
 
 import type { Knex } from 'knex';
 import { SchemaLoader } from '../schema-loader.js';
-import type { SchemaInfo, ExtendedColumnInfo, ExtendedTableInfo } from '../types.js';
+import type {
+  SchemaInfo,
+  ExtendedColumnInfo,
+  ExtendedTableInfo,
+} from '../types.js';
 
 // Re-export types for backward compatibility
 export type ColumnInfo = ExtendedColumnInfo;

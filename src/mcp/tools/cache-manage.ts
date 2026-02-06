@@ -10,7 +10,10 @@
 
 import { z } from 'zod';
 import { getConfig, validateConfig, type Config } from '../../config/index.js';
-import { createConnection, closeConnection } from '../../database/connection.js';
+import {
+  createConnection,
+  closeConnection,
+} from '../../database/connection.js';
 import {
   getMetadataCacheStats,
   refreshMetadataCache,
@@ -62,7 +65,9 @@ export const cacheRefreshInputSchema = z.object({
   invalidateOnly: z
     .boolean()
     .default(false)
-    .describe('If true, only invalidate cache without reloading (default: false)'),
+    .describe(
+      'If true, only invalidate cache without reloading (default: false)'
+    ),
 });
 
 export type CacheRefreshInput = z.infer<typeof cacheRefreshInputSchema>;
@@ -88,7 +93,9 @@ export interface CacheRefreshOutput {
  * @param input - 옵션
  * @returns 새로고침 결과
  */
-export async function cacheRefresh(input: CacheRefreshInput): Promise<CacheRefreshOutput> {
+export async function cacheRefresh(
+  input: CacheRefreshInput
+): Promise<CacheRefreshOutput> {
   // invalidateOnly 모드
   if (input.invalidateOnly) {
     invalidateMetadataCache();
@@ -105,7 +112,8 @@ export async function cacheRefresh(input: CacheRefreshInput): Promise<CacheRefre
     config = getConfig();
     validateConfig(config);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown configuration error';
+    const message =
+      error instanceof Error ? error.message : 'Unknown configuration error';
     return {
       success: false,
       message: 'Failed to refresh cache',

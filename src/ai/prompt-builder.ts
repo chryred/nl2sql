@@ -138,13 +138,18 @@ function getQuerySafetyGuidelines(): string {
  * @returns 메타데이터 프롬프트 텍스트
  * @private
  */
-function formatMetadataForPrompt(metadata: MetadataCache, dbType: DatabaseType): string {
+function formatMetadataForPrompt(
+  metadata: MetadataCache,
+  dbType: DatabaseType
+): string {
   const sections: string[] = [];
 
   // 테이블 관계 정보
   if (metadata.relationships.length > 0) {
     const relationshipLines = metadata.relationships.map((rel) => {
-      const joinType = rel.joinHint ? ` (${rel.joinHint} JOIN recommended)` : '';
+      const joinType = rel.joinHint
+        ? ` (${rel.joinHint} JOIN recommended)`
+        : '';
       return `  - ${rel.sourceTable}.${rel.sourceColumn} -> ${rel.targetTable}.${rel.targetColumn} (${rel.relationshipType})${joinType}`;
     });
     sections.push(`Table Relationships:\n${relationshipLines.join('\n')}`);
@@ -165,7 +170,9 @@ function formatMetadataForPrompt(metadata: MetadataCache, dbType: DatabaseType):
       const definition = term.definition ? ` - ${term.definition}` : '';
       return `  - "${term.term}" → ${sqlCondition}${definition}`;
     });
-    sections.push(`Business Terms (use these SQL conditions when user mentions these terms):\n${glossaryLines.join('\n')}`);
+    sections.push(
+      `Business Terms (use these SQL conditions when user mentions these terms):\n${glossaryLines.join('\n')}`
+    );
   }
 
   // 용어 별칭 (동의어)
@@ -181,7 +188,9 @@ function formatMetadataForPrompt(metadata: MetadataCache, dbType: DatabaseType):
     aliasMap.forEach((aliases, termCode) => {
       const term = metadata.glossaryTerms.find((t) => t.termCode === termCode);
       if (term) {
-        aliasLines.push(`  - "${term.term}" also known as: ${aliases.join(', ')}`);
+        aliasLines.push(
+          `  - "${term.term}" also known as: ${aliases.join(', ')}`
+        );
       }
     });
     if (aliasLines.length > 0) {
@@ -201,7 +210,9 @@ function formatMetadataForPrompt(metadata: MetadataCache, dbType: DatabaseType):
       } else if (dbType === 'oracle' && pattern.sqlTemplateOracle) {
         template = pattern.sqlTemplateOracle;
       }
-      const example = pattern.exampleInput ? ` (e.g., "${pattern.exampleInput}")` : '';
+      const example = pattern.exampleInput
+        ? ` (e.g., "${pattern.exampleInput}")`
+        : '';
       return `  - ${pattern.patternName}${example}:\n    ${template}`;
     });
     sections.push(`Common Query Patterns:\n${patternLines.join('\n')}`);
@@ -218,13 +229,19 @@ function formatMetadataForPrompt(metadata: MetadataCache, dbType: DatabaseType):
 
     const keywordLines: string[] = [];
     keywordMap.forEach((keywords, patternCode) => {
-      const pattern = metadata.queryPatterns.find((p) => p.patternCode === patternCode);
+      const pattern = metadata.queryPatterns.find(
+        (p) => p.patternCode === patternCode
+      );
       if (pattern) {
-        keywordLines.push(`  - Keywords [${keywords.join(', ')}] → use "${pattern.patternName}" pattern`);
+        keywordLines.push(
+          `  - Keywords [${keywords.join(', ')}] → use "${pattern.patternName}" pattern`
+        );
       }
     });
     if (keywordLines.length > 0) {
-      sections.push(`Pattern Keywords (when user mentions these, consider the corresponding pattern):\n${keywordLines.join('\n')}`);
+      sections.push(
+        `Pattern Keywords (when user mentions these, consider the corresponding pattern):\n${keywordLines.join('\n')}`
+      );
     }
   }
 
@@ -264,7 +281,9 @@ export function buildPrompt(options: PromptOptions): string {
   const safetyGuidelines = getQuerySafetyGuidelines();
 
   // 메타데이터 섹션 (있는 경우에만 추가)
-  const metadataSection = metadata ? formatMetadataForPrompt(metadata, dbType) : '';
+  const metadataSection = metadata
+    ? formatMetadataForPrompt(metadata, dbType)
+    : '';
 
   const sections = [
     `Given the following database schema:`,
@@ -281,7 +300,9 @@ export function buildPrompt(options: PromptOptions): string {
   }
 
   sections.push(`User request: ${naturalLanguageQuery}`);
-  sections.push(`Generate a valid, efficient SQL query that fulfills the user's request:`);
+  sections.push(
+    `Generate a valid, efficient SQL query that fulfills the user's request:`
+  );
 
   return sections.join('\n\n');
 }

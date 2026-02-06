@@ -186,38 +186,32 @@ function loadConfig(): Config {
   const configFile = loadConfigFile();
 
   // 데이터베이스 타입 결정 (환경변수 > 설정파일 > 기본값)
-  const dbType = (process.env.DB_TYPE || configFile.database?.type || 'postgresql') as
-    | 'postgresql'
-    | 'mysql'
-    | 'oracle';
-  const defaultPort = dbType === 'mysql' ? 3306 : dbType === 'oracle' ? 1521 : 5432;
+  const dbType = (process.env.DB_TYPE ||
+    configFile.database?.type ||
+    'postgresql') as 'postgresql' | 'mysql' | 'oracle';
+  const defaultPort =
+    dbType === 'mysql' ? 3306 : dbType === 'oracle' ? 1521 : 5432;
 
   // 환경변수와 설정파일 병합 (환경변수 우선)
   const rawConfig = {
     ai: {
       provider:
-        process.env.NL2SQL_AI_PROVIDER ||
-        configFile.ai?.provider ||
-        'openai',
-      openaiApiKey:
-        process.env.OPENAI_API_KEY || configFile.ai?.openaiApiKey,
+        process.env.NL2SQL_AI_PROVIDER || configFile.ai?.provider || 'openai',
+      openaiApiKey: process.env.OPENAI_API_KEY || configFile.ai?.openaiApiKey,
       anthropicApiKey:
         process.env.ANTHROPIC_API_KEY || configFile.ai?.anthropicApiKey,
       model: process.env.NL2SQL_MODEL || configFile.ai?.model,
     },
     database: {
       type: dbType,
-      host:
-        process.env.DB_HOST || configFile.database?.host || 'localhost',
+      host: process.env.DB_HOST || configFile.database?.host || 'localhost',
       port:
         parseInt(process.env.DB_PORT || '', 10) ||
         configFile.database?.port ||
         defaultPort,
       user: process.env.DB_USER || configFile.database?.user || '',
-      password:
-        process.env.DB_PASSWORD || configFile.database?.password || '',
-      database:
-        process.env.DB_NAME || configFile.database?.database || '',
+      password: process.env.DB_PASSWORD || configFile.database?.password || '',
+      database: process.env.DB_NAME || configFile.database?.database || '',
       serviceName:
         process.env.DB_SERVICE_NAME || configFile.database?.serviceName,
     },

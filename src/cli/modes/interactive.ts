@@ -15,7 +15,10 @@ import type { Knex } from 'knex';
 import type { Config } from '../../config/index.js';
 import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
 import { validateNaturalLanguageInput } from '../../utils/input-validator.js';
-import { formatResults, type OutputFormat } from '../formatters/result-formatter.js';
+import {
+  formatResults,
+  type OutputFormat,
+} from '../formatters/result-formatter.js';
 import { getMetadataCacheStats } from '../../database/metadata/index.js';
 import { logger } from '../../logger/index.js';
 
@@ -91,7 +94,9 @@ export class InteractiveSession {
     const schemaSpinner = ora('데이터베이스 스키마 로딩 중...').start();
     try {
       const schema = await this.engine.getSchema();
-      schemaSpinner.succeed(`스키마 로드 완료 (${schema.tables.length}개 테이블)`);
+      schemaSpinner.succeed(
+        `스키마 로드 완료 (${schema.tables.length}개 테이블)`
+      );
     } catch (error) {
       schemaSpinner.warn('스키마 로드 실패 - 쿼리 실행 시 다시 시도합니다.');
       if (error instanceof Error) {
@@ -176,7 +181,9 @@ export class InteractiveSession {
       await this.refreshCache();
     } else {
       console.log(chalk.yellow(`알 수 없는 명령어: ${cmd}`));
-      console.log(chalk.gray('.help 를 입력하여 사용 가능한 명령어를 확인하세요.'));
+      console.log(
+        chalk.gray('.help 를 입력하여 사용 가능한 명령어를 확인하세요.')
+      );
     }
   }
 
@@ -202,7 +209,9 @@ export class InteractiveSession {
       sqlSpinner.succeed('SQL 생성 완료');
     } catch (error) {
       sqlSpinner.fail('SQL 생성 실패');
-      console.log(chalk.red(error instanceof Error ? error.message : String(error)));
+      console.log(
+        chalk.red(error instanceof Error ? error.message : String(error))
+      );
       return;
     }
 
@@ -216,7 +225,9 @@ export class InteractiveSession {
     if (this.autoExecute) {
       await this.executeQuery(sql);
     } else {
-      console.log(chalk.gray('실행하려면 y를 입력하세요. (자동 실행: .execute)'));
+      console.log(
+        chalk.gray('실행하려면 y를 입력하세요. (자동 실행: .execute)')
+      );
       const answer = await this.promptInput();
       if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
         await this.executeQuery(sql);
@@ -242,7 +253,9 @@ export class InteractiveSession {
       }
     } catch (error) {
       execSpinner.fail('쿼리 실행 실패');
-      console.log(chalk.red(error instanceof Error ? error.message : String(error)));
+      console.log(
+        chalk.red(error instanceof Error ? error.message : String(error))
+      );
     }
   }
 
@@ -278,14 +291,20 @@ export class InteractiveSession {
       } else {
         console.log(chalk.bold('\n테이블 목록:'));
         for (const table of schema.tables) {
-          const comment = table.comment ? chalk.gray(` - ${table.comment}`) : '';
-          console.log(`  ${table.name} (${table.columns.length}개 컬럼)${comment}`);
+          const comment = table.comment
+            ? chalk.gray(` - ${table.comment}`)
+            : '';
+          console.log(
+            `  ${table.name} (${table.columns.length}개 컬럼)${comment}`
+          );
         }
       }
       console.log('');
     } catch (error) {
       spinner.fail('스키마 조회 실패');
-      console.log(chalk.red(error instanceof Error ? error.message : String(error)));
+      console.log(
+        chalk.red(error instanceof Error ? error.message : String(error))
+      );
     }
   }
 
@@ -325,7 +344,9 @@ export class InteractiveSession {
     const stats = getMetadataCacheStats();
 
     console.log(chalk.bold('\n메타데이터 캐시 상태:'));
-    console.log(`  초기화: ${stats.initialized ? chalk.green('예') : chalk.red('아니오')}`);
+    console.log(
+      `  초기화: ${stats.initialized ? chalk.green('예') : chalk.red('아니오')}`
+    );
 
     if (stats.initialized) {
       console.log(`  데이터베이스: ${stats.databaseType}`);
@@ -351,7 +372,9 @@ export class InteractiveSession {
       spinner.succeed('캐시 새로고침 완료');
     } catch (error) {
       spinner.fail('캐시 새로고침 실패');
-      console.log(chalk.red(error instanceof Error ? error.message : String(error)));
+      console.log(
+        chalk.red(error instanceof Error ? error.message : String(error))
+      );
     }
   }
 
@@ -360,13 +383,25 @@ export class InteractiveSession {
    */
   private printWelcome(): void {
     console.log('');
-    console.log(chalk.bold.cyan('╔═══════════════════════════════════════════════╗'));
-    console.log(chalk.bold.cyan('║         NL2SQL Interactive Mode               ║'));
-    console.log(chalk.bold.cyan('║   자연어를 SQL로 변환하는 대화형 인터페이스   ║'));
-    console.log(chalk.bold.cyan('╚═══════════════════════════════════════════════╝'));
+    console.log(
+      chalk.bold.cyan('╔═══════════════════════════════════════════════╗')
+    );
+    console.log(
+      chalk.bold.cyan('║         NL2SQL Interactive Mode               ║')
+    );
+    console.log(
+      chalk.bold.cyan('║   자연어를 SQL로 변환하는 대화형 인터페이스   ║')
+    );
+    console.log(
+      chalk.bold.cyan('╚═══════════════════════════════════════════════╝')
+    );
     console.log('');
     console.log(chalk.gray('자연어로 쿼리를 입력하세요. 도움말: .help'));
-    console.log(chalk.gray(`데이터베이스: ${this.config.database.type}://${this.config.database.host}:${this.config.database.port}/${this.config.database.database}`));
+    console.log(
+      chalk.gray(
+        `데이터베이스: ${this.config.database.type}://${this.config.database.host}:${this.config.database.port}/${this.config.database.database}`
+      )
+    );
     console.log('');
   }
 
@@ -380,10 +415,16 @@ export class InteractiveSession {
     console.log(chalk.cyan('  .help, .h, ?') + '     이 도움말 표시');
     console.log(chalk.cyan('  .exit, .quit, .q') + ' 종료');
     console.log(chalk.cyan('  .clear, .cls') + '     화면 지우기');
-    console.log(chalk.cyan('  .schema [table]') + '  스키마 표시 (테이블명 선택적)');
-    console.log(chalk.cyan('  .format [type]') + '   출력 형식 설정 (table/json/csv)');
+    console.log(
+      chalk.cyan('  .schema [table]') + '  스키마 표시 (테이블명 선택적)'
+    );
+    console.log(
+      chalk.cyan('  .format [type]') + '   출력 형식 설정 (table/json/csv)'
+    );
     console.log(chalk.cyan('  .execute') + '         자동 실행 모드 토글');
-    console.log(chalk.cyan('  .cache') + '           메타데이터 캐시 상태 표시');
+    console.log(
+      chalk.cyan('  .cache') + '           메타데이터 캐시 상태 표시'
+    );
     console.log(chalk.cyan('  .refresh') + '         캐시 새로고침');
     console.log('');
     console.log(chalk.gray('자연어 쿼리를 입력하면 SQL로 변환됩니다.'));

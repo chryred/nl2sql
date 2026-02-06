@@ -34,13 +34,30 @@ function getQueryFilePath(dbType: DatabaseType): string {
   }
 
   // 빌드 환경: dist/database/schemas/metadata/
-  const distPath = join(__dirname, '..', '..', '..', 'src', 'database', 'schemas', 'metadata', filename);
+  const distPath = join(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'src',
+    'database',
+    'schemas',
+    'metadata',
+    filename
+  );
   if (existsSync(distPath)) {
     return distPath;
   }
 
   // 프로젝트 루트 기준
-  const rootPath = join(process.cwd(), 'src', 'database', 'schemas', 'metadata', filename);
+  const rootPath = join(
+    process.cwd(),
+    'src',
+    'database',
+    'schemas',
+    'metadata',
+    filename
+  );
   if (existsSync(rootPath)) {
     return rootPath;
   }
@@ -73,7 +90,9 @@ export function loadMetadataQueries(dbType: DatabaseType): MetadataQueryConfig {
     return config;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to load metadata queries for ${dbType}: ${error.message}`);
+      throw new Error(
+        `Failed to load metadata queries for ${dbType}: ${error.message}`
+      );
     }
     throw error;
   }
@@ -109,7 +128,10 @@ export function mapQueryResults<T>(
         let value = row[actualKey];
 
         // JSON 문자열을 배열로 파싱 (apply_to_schemas, exclude_tables 등)
-        if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
+        if (
+          typeof value === 'string' &&
+          (value.startsWith('[') || value.startsWith('{'))
+        ) {
           try {
             value = JSON.parse(value);
           } catch {
@@ -138,7 +160,11 @@ export function mapQueryResults<T>(
 /**
  * 모든 지원 데이터베이스 타입 목록
  */
-export const SUPPORTED_DB_TYPES: DatabaseType[] = ['postgresql', 'mysql', 'oracle'];
+export const SUPPORTED_DB_TYPES: DatabaseType[] = [
+  'postgresql',
+  'mysql',
+  'oracle',
+];
 
 /**
  * 데이터베이스 타입이 유효한지 확인합니다.

@@ -32,7 +32,11 @@ function escapeCSVValue(value: unknown): string {
   const strValue = String(value);
 
   // 쉼표, 큰따옴표, 개행이 포함된 경우 큰따옴표로 감싸기
-  if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n')) {
+  if (
+    strValue.includes(',') ||
+    strValue.includes('"') ||
+    strValue.includes('\n')
+  ) {
     // 큰따옴표는 두 개로 이스케이프
     return `"${strValue.replace(/"/g, '""')}"`;
   }
@@ -110,14 +114,10 @@ function formatAsTable(results: ResultRow[]): string {
   }
 
   // 헤더 행 생성
-  const headerRow = headers
-    .map((h) => h.padEnd(columnWidths[h]))
-    .join(' | ');
+  const headerRow = headers.map((h) => h.padEnd(columnWidths[h])).join(' | ');
 
   // 구분선 생성
-  const separator = headers
-    .map((h) => '-'.repeat(columnWidths[h]))
-    .join('-+-');
+  const separator = headers.map((h) => '-'.repeat(columnWidths[h])).join('-+-');
 
   // 데이터 행 생성
   const dataRows = results.map((row) =>

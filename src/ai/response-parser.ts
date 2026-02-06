@@ -10,20 +10,47 @@ const DANGEROUS_KEYWORDS = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER'] as const;
 const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   { pattern: /--/, reason: 'SQL comment (--) detected' },
   { pattern: /\/\*/, reason: 'Block comment (/*) detected' },
-  { pattern: /;\s*(DROP|DELETE|TRUNCATE|ALTER)/i, reason: 'Multiple statements with dangerous command detected' },
-  { pattern: /UNION\s+(ALL\s+)?SELECT/i, reason: 'UNION SELECT injection pattern detected' },
-  { pattern: /INTO\s+OUTFILE/i, reason: 'File write operation (INTO OUTFILE) detected' },
-  { pattern: /INTO\s+DUMPFILE/i, reason: 'File write operation (INTO DUMPFILE) detected' },
-  { pattern: /LOAD_FILE\s*\(/i, reason: 'File read operation (LOAD_FILE) detected' },
+  {
+    pattern: /;\s*(DROP|DELETE|TRUNCATE|ALTER)/i,
+    reason: 'Multiple statements with dangerous command detected',
+  },
+  {
+    pattern: /UNION\s+(ALL\s+)?SELECT/i,
+    reason: 'UNION SELECT injection pattern detected',
+  },
+  {
+    pattern: /INTO\s+OUTFILE/i,
+    reason: 'File write operation (INTO OUTFILE) detected',
+  },
+  {
+    pattern: /INTO\s+DUMPFILE/i,
+    reason: 'File write operation (INTO DUMPFILE) detected',
+  },
+  {
+    pattern: /LOAD_FILE\s*\(/i,
+    reason: 'File read operation (LOAD_FILE) detected',
+  },
   { pattern: /LOAD\s+DATA\s+/i, reason: 'Data loading operation detected' },
-  { pattern: /xp_cmdshell/i, reason: 'Command execution (xp_cmdshell) detected' },
+  {
+    pattern: /xp_cmdshell/i,
+    reason: 'Command execution (xp_cmdshell) detected',
+  },
   { pattern: /EXEC(\s+|\()/i, reason: 'EXEC command detected' },
   { pattern: /EXECUTE\s+/i, reason: 'EXECUTE command detected' },
   { pattern: /0x[0-9a-fA-F]+/, reason: 'Hexadecimal string detected' },
-  { pattern: /CHAR\s*\(\s*\d+\s*\)/i, reason: 'CHAR() function with numeric argument detected' },
-  { pattern: /BENCHMARK\s*\(/i, reason: 'BENCHMARK function detected (potential DoS)' },
+  {
+    pattern: /CHAR\s*\(\s*\d+\s*\)/i,
+    reason: 'CHAR() function with numeric argument detected',
+  },
+  {
+    pattern: /BENCHMARK\s*\(/i,
+    reason: 'BENCHMARK function detected (potential DoS)',
+  },
   { pattern: /SLEEP\s*\(/i, reason: 'SLEEP function detected (potential DoS)' },
-  { pattern: /WAITFOR\s+DELAY/i, reason: 'WAITFOR DELAY detected (potential DoS)' },
+  {
+    pattern: /WAITFOR\s+DELAY/i,
+    reason: 'WAITFOR DELAY detected (potential DoS)',
+  },
 ];
 
 /**
@@ -56,7 +83,10 @@ export function detectDangerousSQL(sql: string): DangerousPatternResult {
     // 세미콜론 뒤에 위험 키워드 확인 (다중 명령어)
     const afterSemicolon = new RegExp(`;\\s*${keyword}\\b`, 'i');
     if (afterSemicolon.test(sql)) {
-      return { safe: false, reason: `Multiple statements with dangerous command: ${keyword}` };
+      return {
+        safe: false,
+        reason: `Multiple statements with dangerous command: ${keyword}`,
+      };
     }
   }
 
@@ -106,7 +136,11 @@ export function validateSQL(sql: string): { valid: boolean; error?: string } {
   // INSERT, UPDATE는 허용하되 DROP, DELETE, TRUNCATE, ALTER는 위에서 이미 차단됨
   const hasValidStart = /^(SELECT|INSERT|UPDATE|WITH|CREATE)/i.test(trimmed);
   if (!hasValidStart) {
-    return { valid: false, error: 'SQL must start with a valid statement keyword (SELECT, INSERT, UPDATE, WITH, CREATE)' };
+    return {
+      valid: false,
+      error:
+        'SQL must start with a valid statement keyword (SELECT, INSERT, UPDATE, WITH, CREATE)',
+    };
   }
 
   // 3. Check for balanced parentheses

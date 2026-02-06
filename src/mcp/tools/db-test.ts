@@ -10,7 +10,11 @@
 
 import { z } from 'zod';
 import { getConfig, validateConfig, type Config } from '../../config/index.js';
-import { createConnection, testConnection, closeConnection } from '../../database/connection.js';
+import {
+  createConnection,
+  testConnection,
+  closeConnection,
+} from '../../database/connection.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
 
 /**
@@ -47,7 +51,8 @@ export async function dbTestConnection(): Promise<DbTestOutput> {
     config = getConfig();
     validateConfig(config);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown configuration error';
+    const message =
+      error instanceof Error ? error.message : 'Unknown configuration error';
     return {
       success: false,
       message: `Configuration error: ${maskSensitiveInfo(message)}`,

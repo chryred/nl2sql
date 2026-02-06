@@ -10,8 +10,15 @@
 
 import { z } from 'zod';
 import { getConfig, validateConfig, type Config } from '../../config/index.js';
-import { createConnection, closeConnection } from '../../database/connection.js';
-import { extractSchema, formatSchemaForPrompt, type SchemaInfo } from '../../database/schema-extractor.js';
+import {
+  createConnection,
+  closeConnection,
+} from '../../database/connection.js';
+import {
+  extractSchema,
+  formatSchemaForPrompt,
+  type SchemaInfo,
+} from '../../database/schema-extractor.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
 
 /**
@@ -21,7 +28,9 @@ export const nl2sqlSchemaInputSchema = z.object({
   format: z
     .enum(['json', 'prompt', 'summary'])
     .default('json')
-    .describe('Output format: json (full schema), prompt (AI-friendly text), summary (table list)'),
+    .describe(
+      'Output format: json (full schema), prompt (AI-friendly text), summary (table list)'
+    ),
 });
 
 export type Nl2sqlSchemaInput = z.infer<typeof nl2sqlSchemaInputSchema>;
@@ -68,14 +77,17 @@ function formatSchemaAsSummary(schema: SchemaInfo): SchemaSummary {
  * @param input - 출력 형식 옵션
  * @returns 스키마 정보
  */
-export async function nl2sqlSchema(input: Nl2sqlSchemaInput): Promise<Nl2sqlSchemaOutput> {
+export async function nl2sqlSchema(
+  input: Nl2sqlSchemaInput
+): Promise<Nl2sqlSchemaOutput> {
   let config: Config;
 
   try {
     config = getConfig();
     validateConfig(config);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown configuration error';
+    const message =
+      error instanceof Error ? error.message : 'Unknown configuration error';
     return {
       success: false,
       format: input.format,

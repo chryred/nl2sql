@@ -15,7 +15,11 @@
 /**
  * 관계 타입
  */
-export type RelationshipType = 'ONE_TO_ONE' | 'ONE_TO_MANY' | 'MANY_TO_ONE' | 'MANY_TO_MANY';
+export type RelationshipType =
+  | 'ONE_TO_ONE'
+  | 'ONE_TO_MANY'
+  | 'MANY_TO_ONE'
+  | 'MANY_TO_MANY';
 
 /**
  * 신뢰도 레벨
@@ -130,7 +134,13 @@ export interface CodeValue {
 /**
  * 용어 카테고리
  */
-export type GlossaryCategory = 'TIME' | 'STATUS' | 'COMPARISON' | 'AGGREGATION' | 'BUSINESS' | 'CUSTOM';
+export type GlossaryCategory =
+  | 'TIME'
+  | 'STATUS'
+  | 'COMPARISON'
+  | 'AGGREGATION'
+  | 'BUSINESS'
+  | 'CUSTOM';
 
 /**
  * 용어집 항목
@@ -179,7 +189,13 @@ export interface GlossaryContext {
 /**
  * 패턴 카테고리
  */
-export type PatternCategory = 'RANKING' | 'AGGREGATION' | 'TIME_SERIES' | 'COMPARISON' | 'SEARCH' | 'CUSTOM';
+export type PatternCategory =
+  | 'RANKING'
+  | 'AGGREGATION'
+  | 'TIME_SERIES'
+  | 'COMPARISON'
+  | 'SEARCH'
+  | 'CUSTOM';
 
 /**
  * 쿼리 패턴
@@ -205,7 +221,12 @@ export interface QueryPattern {
 /**
  * 패턴 파라미터 타입
  */
-export type PatternParamType = 'INTEGER' | 'STRING' | 'DATE' | 'COLUMN' | 'TABLE';
+export type PatternParamType =
+  | 'INTEGER'
+  | 'STRING'
+  | 'DATE'
+  | 'COLUMN'
+  | 'TABLE';
 
 /**
  * 패턴 파라미터

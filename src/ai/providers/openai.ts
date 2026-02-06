@@ -19,7 +19,8 @@ export class OpenAIProvider implements AIProvider {
       messages: [
         {
           role: 'system',
-          content: 'You are a SQL expert. Generate only valid SQL queries based on the provided schema and natural language request. Return ONLY the SQL query without any explanation or markdown formatting.',
+          content:
+            'You are a SQL expert. Generate only valid SQL queries based on the provided schema and natural language request. Return ONLY the SQL query without any explanation or markdown formatting.',
         },
         {
           role: 'user',

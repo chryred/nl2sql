@@ -14,7 +14,8 @@ export class AnthropicProvider implements AIProvider {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 2048,
-      system: 'You are a SQL expert. Generate only valid SQL queries based on the provided schema and natural language request. Return ONLY the SQL query without any explanation or markdown formatting.',
+      system:
+        'You are a SQL expert. Generate only valid SQL queries based on the provided schema and natural language request. Return ONLY the SQL query without any explanation or markdown formatting.',
       messages: [
         {
           role: 'user',
