@@ -1,3 +1,4 @@
+/*
 -- ============================================================================
 -- NL2SQL 메타데이터 자동 추출 (Oracle)
 -- ============================================================================
@@ -28,10 +29,12 @@
 --
 -- 반복 실행 안전: 예 (MERGE 사용)
 -- ============================================================================
+*/
 
 ALTER SESSION SET CURRENT_SCHEMA = nl2sql;
 SET SERVEROUTPUT ON;
 
+/*
 -- ============================================================================
 -- 1단계: FK 제약조건 → table_relationships
 -- ============================================================================
@@ -40,6 +43,7 @@ SET SERVEROUTPUT ON;
 -- - confidence_level: FK 존재하므로 항상 HIGH
 -- - join_hint: 컬럼이 NOT NULL이면 INNER, nullable이면 LEFT
 -- ============================================================================
+*/
 
 DECLARE
     v_inserted NUMBER := 0;
@@ -58,12 +62,12 @@ BEGIN
             pk_col.owner          AS target_schema,
             pk_col.table_name     AS target_table,
             pk_col.column_name    AS target_column,
-            -- nullable 여부
+            /* nullable 여부 */
             CASE
                 WHEN tcol.nullable = 'N' THEN 'INNER'
                 ELSE 'LEFT'
             END AS join_hint,
-            -- UNIQUE 제약 여부로 관계 유형 결정
+            /* UNIQUE 제약 여부로 관계 유형 결정 */
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -94,7 +98,7 @@ BEGIN
             AND tcol.table_name = fk_col.table_name
             AND tcol.column_name = fk_col.column_name
         WHERE fk_con.constraint_type = 'R'
-          -- 시스템 스키마 제외
+          /* 시스템 스키마 제외 */
           AND fk_col.owner NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'OUTLN', 'MDSYS',
                                     'CTXSYS', 'XDB', 'WMSYS', 'APEX_PUBLIC_USER',
                                     'APEX_040000', 'FLOWS_FILES', 'NL2SQL')
@@ -155,7 +159,7 @@ BEGIN
 END;
 /
 
-
+/*
 -- ============================================================================
 -- 2단계: 코드 테이블 휴리스틱 탐지 → code_tables
 -- ============================================================================
@@ -171,12 +175,13 @@ END;
 --   - 테이블명에 코드 키워드 포함                         +2
 --   - 2개 이상 테이블에서 참조됨                          +2
 -- ============================================================================
+*/
 
 DECLARE
     v_inserted NUMBER := 0;
     v_total    NUMBER := 0;
 
-    -- 컬럼 추정용 변수
+    /* 컬럼 추정용 변수 */
     v_guessed_code_col   VARCHAR2(128);
     v_guessed_name_col   VARCHAR2(128);
     v_guessed_group_col  VARCHAR2(128);
@@ -204,46 +209,46 @@ BEGIN
                 ts.table_schema,
                 ts.table_name,
                 ts.estimated_rows,
-                -- 코드 컬럼 (+1)
+                /* 코드 컬럼 (+1) */
                 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
                  FROM all_tab_columns c
                  WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name
                  AND (UPPER(c.column_name) LIKE '%CODE%' OR UPPER(c.column_name) LIKE '%CD%'))
                 +
-                -- 이름 컬럼 (+1)
+                /* 이름 컬럼 (+1) */
                 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
                  FROM all_tab_columns c
                  WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name
                  AND (UPPER(c.column_name) LIKE '%NAME%' OR UPPER(c.column_name) LIKE '%NM%'
                       OR UPPER(c.column_name) LIKE '%LABEL%'))
                 +
-                -- 그룹 컬럼 (+1)
+                /* 그룹 컬럼 (+1) */
                 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
                  FROM all_tab_columns c
                  WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name
                  AND (UPPER(c.column_name) LIKE '%GROUP%' OR UPPER(c.column_name) LIKE '%TYPE%'
                       OR UPPER(c.column_name) LIKE '%CATEGORY%'))
                 +
-                -- 정렬 컬럼 (+1)
+                /* 정렬 컬럼 (+1) */
                 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
                  FROM all_tab_columns c
                  WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name
                  AND (UPPER(c.column_name) LIKE '%ORDER%' OR UPPER(c.column_name) LIKE '%SEQ%'
                       OR UPPER(c.column_name) LIKE '%SORT%'))
                 +
-                -- 활성 플래그 (+1)
+                /* 활성 플래그 (+1) */
                 (SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
                  FROM all_tab_columns c
                  WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name
                  AND (UPPER(c.column_name) LIKE '%ACTIVE%' OR UPPER(c.column_name) LIKE '%USE%'
                       OR UPPER(c.column_name) LIKE '%\_YN' ESCAPE '\'))
                 +
-                -- 테이블명 키워드 (+2)
+                /* 테이블명 키워드 (+2) */
                 CASE WHEN REGEXP_LIKE(UPPER(ts.table_name),
                     '(CODE|CD|COMMON|MASTER|LOOKUP|REF|TYPE|STATUS|CATEGORY)')
                      THEN 2 ELSE 0 END
                 +
-                -- 참조 횟수 (+2)
+                /* 참조 횟수 (+2) */
                 CASE WHEN NVL((
                     SELECT COUNT(DISTINCT fk_col.table_name)
                     FROM all_constraints fk_con
@@ -260,12 +265,11 @@ BEGIN
                 AS total_score
             FROM table_stats ts
         )
-        SELECT * FROM scored
-        WHERE total_score >= 3
+        SELECT * FROM scored WHERE total_score >= 3
     ) LOOP
         v_total := v_total + 1;
 
-        -- 컬럼 추정
+        /* 컬럼 추정 */
         BEGIN
             SELECT column_name INTO v_guessed_code_col
             FROM all_tab_columns
@@ -350,7 +354,7 @@ BEGIN
                 rec.table_schema, rec.table_name,
                 v_guessed_group_col, v_guessed_code_col, v_guessed_name_col,
                 v_guessed_sort_col, v_guessed_active_col,
-                0,  -- 수동 검토 후 활성화
+                0,  /* 수동 검토 후 활성화 */
                 '자동 탐지 (점수: ' || rec.total_score || ', 행수: ' || rec.estimated_rows || ')'
             );
 
@@ -365,13 +369,14 @@ BEGIN
 END;
 /
 
-
+/*
 -- ============================================================================
 -- 3단계: FK → 코드테이블 매핑 → column_code_mapping
 -- ============================================================================
 -- 1단계(FK)와 2단계(코드테이블) 결과를 조인하여 매핑을 생성합니다.
 -- is_active=0, group_code=NULL로 삽입하여 수동 보완이 필요합니다.
 -- ============================================================================
+*/
 
 DECLARE
     v_inserted NUMBER := 0;
@@ -416,10 +421,10 @@ BEGIN
                 is_active, description
             ) VALUES (
                 rec.source_schema, rec.source_table, rec.source_column,
-                rec.code_table_name, ' ',  -- group_code는 수동 보완 필요 (NOT NULL 대응)
-                rec.source_column,  -- 컬럼명을 display_name으로 사용
-                1,   -- include_in_prompt
-                0,   -- 수동 검토 후 활성화
+                rec.code_table_name, ' ',  /* group_code는 수동 보완 필요 (NOT NULL 대응) */
+                rec.source_column,  /* 컬럼명을 display_name으로 사용 */
+                1,   /* include_in_prompt */
+                0,   /* 수동 검토 후 활성화 */
                 'FK→코드테이블 자동 매핑 (group_code 수동 설정 필요)'
             );
 
@@ -435,10 +440,11 @@ BEGIN
 END;
 /
 
-
+/*
 -- ============================================================================
 -- 결과 요약
 -- ============================================================================
+*/
 
 DECLARE
     v_rel_count  NUMBER;
