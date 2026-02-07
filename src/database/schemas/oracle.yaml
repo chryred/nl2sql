@@ -33,6 +33,7 @@ excludeSchemas:
   - SYS$UMF
   - DGPDB_INT
   - REMOTE_SCHEDULER_AGENT
+  - NL2SQL
 
 queries:
   # 사용 가능한 스키마(사용자) 목록 조회

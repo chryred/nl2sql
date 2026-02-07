@@ -116,3 +116,18 @@ BEGIN
     :NEW.updated_at := SYSTIMESTAMP;
 END;
 /
+
+
+
+/* 테이블 권한 부여 */
+GRANT ALL PRIVILEGES ON table_relationships TO appuser;
+GRANT ALL PRIVILEGES ON naming_conventions TO appuser;
+GRANT ALL PRIVILEGES ON code_tables TO appuser;
+GRANT ALL PRIVILEGES ON column_code_mapping TO appuser;
+GRANT ALL PRIVILEGES ON code_aliases TO appuser;
+GRANT ALL PRIVILEGES ON glossary_terms TO appuser;
+GRANT ALL PRIVILEGES ON glossary_aliases TO appuser;
+GRANT ALL PRIVILEGES ON glossary_contexts TO appuser;
+GRANT ALL PRIVILEGES ON query_patterns TO appuser;
+GRANT ALL PRIVILEGES ON pattern_parameters TO appuser;
+GRANT ALL PRIVILEGES ON pattern_keywords TO appuser;

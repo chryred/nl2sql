@@ -423,6 +423,7 @@ export class SchemaLoader {
       isPrimaryKey:
         row.is_primary_key === true ||
         row.is_primary_key === 1 ||
+        row.IS_PRIMARY_KEY === 1 ||
         (row.column_key || row.COLUMN_KEY) === 'PRI',
       isForeignKey: false,
       comment: (row.column_comment || row.COLUMN_COMMENT) as string | undefined,
@@ -525,7 +526,7 @@ export class SchemaLoader {
     );
 
     return result.map((row) => {
-      const columnsRaw = row.columns;
+      const columnsRaw = row.COLUMNS || row.columns;
       let columns: string[];
 
       if (Array.isArray(columnsRaw)) {
@@ -583,9 +584,9 @@ export class SchemaLoader {
     );
 
     return result.map((row) => {
-      const columnsRaw = row.columns;
+      const columnsRaw = row.COLUMNS || row.columns;
       let columns: string[];
-
+      
       if (Array.isArray(columnsRaw)) {
         columns = columnsRaw as string[];
       } else if (typeof columnsRaw === 'string') {
@@ -600,7 +601,9 @@ export class SchemaLoader {
         unique:
           row.is_unique === true ||
           row.is_unique === 1 ||
-          row.is_unique === '1',
+          row.is_unique === '1' ||
+          row.IS_UNIQUE === 1 ||
+          row.IS_UNIQUE === '1',
         type: (row.index_type || row.INDEX_TYPE) as string | undefined,
       };
     });

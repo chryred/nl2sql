@@ -212,6 +212,15 @@ export class NL2SQLEngine {
     const schema = await this.getSchema();
     const metadata = await this.getMetadata();
 
+    // for(const table of schema.tables) {
+    //   if(table.name === "RESERVATION_SERVICES") {
+    //     console.log(table.schemaName);
+    //     console.log(table.columns);
+    //     console.log(table.indexes);
+    //     console.log("===================");
+    //   }
+    // }
+  
     const prompt = buildPrompt({
       tables: schema,
       naturalLanguageQuery,
