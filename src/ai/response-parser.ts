@@ -113,7 +113,15 @@ export function parseSQL(response: string): string {
   sql = sql.replace(/^`+|`+$/g, '');
 
   // Normalize whitespace
-  sql = sql.replace(/\s+/g, ' ').trim();
+  // sql = sql.replace(/\s+/g, ' ').trim();
+  sql = sql
+    .replace(/('(?:[^'\\]|\\.)*')|(\s+)/g, (match, stringGroup, spaceGroup) => {
+      // stringGroup에 값이 있다면(따옴표 안쪽이라면) 그대로 반환
+      if (stringGroup) return stringGroup;
+      // spaceGroup에 값이 있다면(따옴표 밖 공백이라면) 공백 한 칸으로 치환
+      return ' ';
+    })
+    .trim();
 
   // Ensure it ends with semicolon
   if (!sql.endsWith(';')) {

@@ -1,7 +1,7 @@
 ---
 name: react-clean-code-refactorer
 description: "Use this agent when the user wants to refactor a React component file for cleaner code, better naming, SOLID principles, or removing duplication. This agent reads the specified file, applies clean code practices, overwrites the file with improved code, and outputs a completion message.\\n\\nExamples:\\n\\n- User: \"이 컴포넌트 좀 리팩토링해줘: src/components/UserProfile.tsx\"\\n  Assistant: \"I'll use the react-clean-code-refactorer agent to refactor the UserProfile component.\"\\n  (Launches agent via Task tool targeting src/components/UserProfile.tsx)\\n\\n- User: \"src/components/Dashboard.tsx 코드가 너무 지저분한데 정리 좀 해줘\"\\n  Assistant: \"Let me launch the react-clean-code-refactorer agent to clean up the Dashboard component.\"\\n  (Launches agent via Task tool targeting src/components/Dashboard.tsx)\\n\\n- User: \"UserList 컴포넌트에 중복 코드가 많아. SOLID 원칙에 맞게 개선해줘\"\\n  Assistant: \"I'll use the react-clean-code-refactorer agent to apply SOLID principles and remove duplication from UserList.\"\\n  (Launches agent via Task tool targeting the UserList component file)\\n\\n- Context: After a user has just finished writing a large React component.\\n  User: \"다 짰는데 좀 정리해줄 수 있어?\"\\n  Assistant: \"I'll use the react-clean-code-refactorer agent to refactor the component you just wrote.\"\\n  (Launches agent via Task tool targeting the recently created/modified component file)"
-tools: Bash, Glob, Grep, Read, Edit, Write, NotebookEdit, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool
+tools: Bash, Glob, Grep, Read, Edit, Write, WebFetch, WebSearch, ListMcpResourcesTool, ReadMcpResourceTool
 model: sonnet
 memory: project
 ---

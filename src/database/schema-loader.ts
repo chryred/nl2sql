@@ -586,7 +586,7 @@ export class SchemaLoader {
     return result.map((row) => {
       const columnsRaw = row.COLUMNS || row.columns;
       let columns: string[];
-      
+
       if (Array.isArray(columnsRaw)) {
         columns = columnsRaw as string[];
       } else if (typeof columnsRaw === 'string') {
