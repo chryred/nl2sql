@@ -76,6 +76,8 @@ export interface NL2SQLResult {
 export interface NL2SQLEngineOptions {
   /** 메타데이터 캐시 사용 여부 (기본값: true) */
   useMetadata?: boolean;
+  /** 주입된 메타데이터 캐시 (ConnectionManager용). undefined=전역싱글톤 사용, null=메타데이터 없음 */
+  metadataCache?: MetadataCache | null;
 }
 
 export class NL2SQLEngine {
@@ -94,6 +96,9 @@ export class NL2SQLEngine {
   /** 메타데이터 사용 여부 */
   private useMetadata: boolean;
 
+  /** 주입된 메타데이터 캐시 (undefined=전역싱글톤 사용) */
+  private injectedCache?: MetadataCache | null;
+
   /**
    * NL2SQLEngine 생성자
    *
@@ -106,6 +111,7 @@ export class NL2SQLEngine {
     this.config = config;
     this.aiClient = createAIClient(config);
     this.useMetadata = options.useMetadata ?? true;
+    this.injectedCache = options.metadataCache;
   }
 
   /**
@@ -149,7 +155,12 @@ export class NL2SQLEngine {
       return null;
     }
 
-    // 이미 캐시된 메타데이터가 있으면 반환
+    // 주입된 캐시가 있으면 사용 (ConnectionManager 경로)
+    if (this.injectedCache !== undefined) {
+      return this.injectedCache;
+    }
+
+    // 전역 싱글톤 경로 (CLI 호환)
     const cached = getMetadataCache();
     if (cached) {
       return cached;

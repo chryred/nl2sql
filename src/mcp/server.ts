@@ -3,15 +3,21 @@
  *
  * @description
  * McpServer 인스턴스를 생성하고 NL2SQL 도구들을 등록합니다.
- * stdio 및 SSE 전송을 모두 지원합니다.
+ * ConnectionManager를 통해 다중 연결을 지원합니다.
  *
  * @module mcp/server
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { ConnectionManager } from '../database/connection-manager.js';
 
 import { dbTestConnection, dbTestInputSchema } from './tools/db-test.js';
 import { dbConnect, dbConnectInputSchema } from './tools/db-connect.js';
+import {
+  dbDisconnect,
+  dbDisconnectInputSchema,
+} from './tools/db-disconnect.js';
+import { dbListConnections, dbListInputSchema } from './tools/db-list.js';
 import {
   nl2sqlSchema,
   nl2sqlSchemaInputSchema,
@@ -31,15 +37,16 @@ import {
 /**
  * MCP 서버 인스턴스를 생성하고 도구들을 등록합니다.
  *
+ * @param connManager - ConnectionManager 인스턴스
  * @returns 설정된 McpServer 인스턴스
  */
-export function createMcpServer(): McpServer {
+export function createMcpServer(connManager: ConnectionManager): McpServer {
   const server = new McpServer({
     name: 'nl2sql-mcp',
-    version: '1.0.0',
+    version: '1.2.0',
   });
 
-  // db_test_connection 도구 등록
+  // db_test_connection 도구 등록 (환경변수 기반, 변경 없음)
   server.registerTool(
     'db_test_connection',
     {
@@ -60,16 +67,58 @@ export function createMcpServer(): McpServer {
     }
   );
 
-  // db_connect 도구 등록
+  // db_connect 도구 등록 (연결 등록 + connectionId 반환)
   server.registerTool(
     'db_connect',
     {
-      description: 'Test database connection with provided credentials.',
+      description:
+        'Connect to a database with provided credentials. Returns connectionId for subsequent tool calls.',
       inputSchema: dbConnectInputSchema,
     },
     async (args) => {
       const input = dbConnectInputSchema.parse(args);
-      const result = await dbConnect(input);
+      const result = await dbConnect(input, connManager);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // db_disconnect 도구 등록
+  server.registerTool(
+    'db_disconnect',
+    {
+      description: 'Disconnect a registered database connection and release resources.',
+      inputSchema: dbDisconnectInputSchema,
+    },
+    async (args) => {
+      const input = dbDisconnectInputSchema.parse(args);
+      const result = await dbDisconnect(input, connManager);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // db_list_connections 도구 등록
+  server.registerTool(
+    'db_list_connections',
+    {
+      description: 'List all active database connections with their status.',
+      inputSchema: dbListInputSchema,
+    },
+    () => {
+      const result = dbListConnections(connManager);
       return {
         content: [
           {
@@ -86,12 +135,12 @@ export function createMcpServer(): McpServer {
     'nl2sql_schema',
     {
       description:
-        'Get database schema information. Supports json, prompt, and summary formats.',
+        'Get database schema information. Supports json, prompt, and summary formats. Optionally specify connectionId.',
       inputSchema: nl2sqlSchemaInputSchema,
     },
     async (args) => {
       const input = nl2sqlSchemaInputSchema.parse(args);
-      const result = await nl2sqlSchema(input);
+      const result = await nl2sqlSchema(input, connManager);
 
       // prompt 형식은 텍스트로, 나머지는 JSON으로
       const text =
@@ -114,12 +163,13 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     'nl2sql_query',
     {
-      description: 'Convert natural language to SQL and optionally execute it.',
+      description:
+        'Convert natural language to SQL and optionally execute it. Optionally specify connectionId.',
       inputSchema: nl2sqlQueryInputSchema,
     },
     async (args) => {
       const input = nl2sqlQueryInputSchema.parse(args);
-      const result = await nl2sqlQuery(input);
+      const result = await nl2sqlQuery(input, connManager);
 
       const text =
         input.format === 'text'
@@ -142,11 +192,12 @@ export function createMcpServer(): McpServer {
     'cache_status',
     {
       description:
-        'Get metadata cache status including initialization state and item counts.',
+        'Get metadata cache status including initialization state and item counts. Optionally specify connectionId.',
       inputSchema: cacheStatusInputSchema,
     },
-    () => {
-      const result = cacheStatus();
+    (args) => {
+      const input = cacheStatusInputSchema.parse(args);
+      const result = cacheStatus(input, connManager);
       return {
         content: [
           {
@@ -163,12 +214,12 @@ export function createMcpServer(): McpServer {
     'cache_refresh',
     {
       description:
-        'Refresh metadata cache without Docker restart. Use invalidateOnly=true to just clear cache.',
+        'Refresh metadata cache without Docker restart. Optionally specify connectionId.',
       inputSchema: cacheRefreshInputSchema,
     },
     async (args) => {
       const input = cacheRefreshInputSchema.parse(args);
-      const result = await cacheRefresh(input);
+      const result = await cacheRefresh(input, connManager);
       return {
         content: [
           {

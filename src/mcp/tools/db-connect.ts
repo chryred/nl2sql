@@ -2,15 +2,15 @@
  * DB 연결 도구 (자격 증명 제공)
  *
  * @description
- * 제공된 자격 증명으로 데이터베이스 연결을 테스트합니다.
- * 환경변수 대신 직접 연결 정보를 받아 테스트합니다.
+ * 제공된 자격 증명으로 데이터베이스 연결을 테스트하고 등록합니다.
+ * 반환된 connectionId를 후속 도구 호출에서 사용합니다.
  *
  * @module mcp/tools/db-connect
  */
 
 import { z } from 'zod';
-import knex, { Knex } from 'knex';
 import { maskSensitiveInfo } from '../../errors/index.js';
+import type { ConnectionManager } from '../../database/connection-manager.js';
 
 /**
  * db_connect 도구의 입력 스키마
@@ -38,26 +38,13 @@ export type DbConnectInput = z.infer<typeof dbConnectInputSchema>;
 export interface DbConnectOutput {
   success: boolean;
   message: string;
+  connectionId?: string;
   details?: {
     type: string;
     host: string;
     port: number;
     database: string;
   };
-}
-
-/**
- * 데이터베이스 타입에 맞는 Knex 클라이언트 이름을 반환합니다.
- */
-function getKnexClient(dbType: string): string {
-  switch (dbType) {
-    case 'mysql':
-      return 'mysql2';
-    case 'oracle':
-      return 'oracledb';
-    default:
-      return 'pg';
-  }
 }
 
 /**
@@ -75,64 +62,42 @@ function getDefaultPort(dbType: string): number {
 }
 
 /**
- * 연결 설정을 생성합니다.
- */
-function getConnectionConfig(input: DbConnectInput): Knex.Config['connection'] {
-  if (input.type === 'oracle') {
-    const port = input.port || getDefaultPort(input.type);
-    const connectString = input.serviceName
-      ? `${input.host}:${port}/${input.serviceName}`
-      : `${input.host}:${port}/${input.database}`;
-
-    return {
-      user: input.user,
-      password: input.password,
-      connectString,
-    };
-  }
-
-  return {
-    host: input.host,
-    port: input.port || getDefaultPort(input.type),
-    user: input.user,
-    password: input.password,
-    database: input.database,
-  };
-}
-
-/**
- * 제공된 자격 증명으로 DB 연결을 테스트합니다.
+ * 제공된 자격 증명으로 DB 연결을 등록하고 테스트합니다.
  *
  * @param input - 연결 자격 증명
- * @returns 연결 테스트 결과
+ * @param connManager - ConnectionManager 인스턴스
+ * @returns 연결 테스트 결과 및 connectionId
  */
 export async function dbConnect(
-  input: DbConnectInput
+  input: DbConnectInput,
+  connManager: ConnectionManager
 ): Promise<DbConnectOutput> {
   const port = input.port || getDefaultPort(input.type);
-  let connection: Knex | null = null;
 
   try {
-    const client = getKnexClient(input.type);
-
-    connection = knex({
-      client,
-      connection: getConnectionConfig(input),
-      pool: {
-        min: 0,
-        max: 1,
-      },
-      acquireConnectionTimeout: 10000,
+    // ConnectionManager에 등록 (Knex 풀 생성)
+    const { connectionId, isNew } = connManager.register({
+      type: input.type,
+      host: input.host,
+      port,
+      user: input.user,
+      password: input.password,
+      database: input.database,
+      serviceName: input.serviceName,
     });
 
-    // 연결 테스트 쿼리
+    // 연결 테스트
+    const entry = connManager.getEntry(connectionId)!;
     const testQuery =
       input.type === 'oracle' ? 'SELECT 1 FROM DUAL' : 'SELECT 1';
-    await connection.raw(testQuery);
+    await entry.knex.raw(testQuery);
 
     return {
       success: true,
-      message: 'Database connection successful',
+      message: isNew
+        ? 'Database connection registered successfully. Use connectionId in subsequent calls.'
+        : 'Reconnected to existing connection.',
+      connectionId,
       details: {
         type: input.type,
         host: input.host,
@@ -152,9 +117,5 @@ export async function dbConnect(
         database: input.database,
       },
     };
-  } finally {
-    if (connection) {
-      await connection.destroy();
-    }
   }
 }

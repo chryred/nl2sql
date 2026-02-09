@@ -385,6 +385,101 @@ export function invalidateMetadataCache(): void {
 }
 
 /**
+ * 전역 싱글톤을 건드리지 않고 독립적으로 메타데이터 캐시를 로드합니다.
+ * ConnectionManager에서 연결별 캐시 관리에 사용됩니다.
+ *
+ * @param knex - Knex 데이터베이스 연결
+ * @param dbType - 데이터베이스 타입
+ * @returns 로드된 메타데이터 캐시
+ */
+export async function loadMetadataCacheIsolated(
+  knex: Knex,
+  dbType: DatabaseType
+): Promise<MetadataCache> {
+  try {
+    logger.info(`Loading isolated metadata cache for ${dbType}...`);
+
+    const queryConfig = loadMetadataQueries(dbType);
+
+    const schemaExists = await checkMetadataSchemaExists(
+      knex,
+      dbType,
+      queryConfig.metadataSchema
+    );
+
+    if (!schemaExists) {
+      logger.warn(
+        `Metadata schema '${queryConfig.metadataSchema}' not found. Using empty cache.`
+      );
+      return createEmptyCache(dbType);
+    }
+
+    const [
+      relationships,
+      namingConventions,
+      codeTables,
+      columnCodeMappings,
+      codeAliases,
+      glossaryTerms,
+      glossaryAliases,
+      glossaryContexts,
+      queryPatterns,
+      patternParameters,
+      patternKeywords,
+    ] = await Promise.all([
+      loadRelationships(knex, queryConfig),
+      loadNamingConventions(knex, queryConfig),
+      loadCodeTables(knex, queryConfig),
+      loadColumnCodeMappings(knex, queryConfig),
+      loadCodeAliases(knex, queryConfig),
+      loadGlossaryTerms(knex, queryConfig),
+      loadGlossaryAliases(knex, queryConfig),
+      loadGlossaryContexts(knex, queryConfig),
+      loadQueryPatterns(knex, queryConfig),
+      loadPatternParameters(knex, queryConfig),
+      loadPatternKeywords(knex, queryConfig),
+    ]);
+
+    const cache: MetadataCache = {
+      relationships,
+      namingConventions,
+      codeTables,
+      columnCodeMappings,
+      codeAliases,
+      glossaryTerms,
+      glossaryAliases,
+      glossaryContexts,
+      queryPatterns,
+      patternParameters,
+      patternKeywords,
+      loadedAt: new Date(),
+      databaseType: dbType,
+    };
+
+    logger.info(`Isolated metadata cache loaded successfully:
+        - Relationships: ${relationships.length}
+        - Naming Conventions: ${namingConventions.length}
+        - Code Tables: ${codeTables.length}
+        - Column Code Mappings: ${columnCodeMappings.length}
+        - Code Aliases: ${codeAliases.length}
+        - Glossary Terms: ${glossaryTerms.length}
+        - Glossary Aliases: ${glossaryAliases.length}
+        - Glossary Contexts: ${glossaryContexts.length}
+        - Query Patterns: ${queryPatterns.length}
+        - Pattern Parameters: ${patternParameters.length}
+        - Pattern Keywords: ${patternKeywords.length}
+      `);
+
+    return cache;
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error('Failed to load isolated metadata cache', error);
+    }
+    return createEmptyCache(dbType);
+  }
+}
+
+/**
  * 캐시가 초기화되었는지 확인합니다.
  *
  * @returns 초기화 여부

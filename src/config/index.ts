@@ -240,6 +240,28 @@ export function getConfig(): Config {
 }
 
 /**
+ * AI 설정만 환경변수/설정파일에서 추출합니다.
+ *
+ * @description
+ * ConnectionManager 경로에서 DB 설정은 ConnectionEntry에서,
+ * AI 설정만 환경변수에서 가져올 때 사용합니다.
+ *
+ * @returns AI 설정 객체
+ */
+export function getAIConfig(): Config['ai'] {
+  const configFile = loadConfigFile();
+  const rawAI = {
+    provider:
+      process.env.NL2SQL_AI_PROVIDER || configFile.ai?.provider || 'openai',
+    openaiApiKey: process.env.OPENAI_API_KEY || configFile.ai?.openaiApiKey,
+    anthropicApiKey:
+      process.env.ANTHROPIC_API_KEY || configFile.ai?.anthropicApiKey,
+    model: process.env.NL2SQL_MODEL || configFile.ai?.model,
+  };
+  return configSchema.shape.ai.parse(rawAI);
+}
+
+/**
  * 설정의 필수 값들을 검증합니다.
  *
  * @description

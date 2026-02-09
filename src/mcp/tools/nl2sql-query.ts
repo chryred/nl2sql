@@ -3,13 +3,18 @@
  *
  * @description
  * 자연어를 SQL로 변환하고 선택적으로 실행합니다.
- * 핵심 NL2SQL 기능을 MCP 도구로 노출합니다.
+ * ConnectionManager를 통해 다중 연결을 지원합니다.
  *
  * @module mcp/tools/nl2sql-query
  */
 
 import { z } from 'zod';
-import { getConfig, validateConfig, type Config } from '../../config/index.js';
+import {
+  getConfig,
+  getAIConfig,
+  validateConfig,
+  type Config,
+} from '../../config/index.js';
 import {
   createConnection,
   closeConnection,
@@ -17,6 +22,7 @@ import {
 import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
 import { validateNaturalLanguageInput } from '../../utils/input-validator.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
+import type { ConnectionManager } from '../../database/connection-manager.js';
 
 /**
  * nl2sql_query 도구의 입력 스키마
@@ -31,6 +37,12 @@ export const nl2sqlQueryInputSchema = z.object({
     .enum(['json', 'text'])
     .default('json')
     .describe('Output format (default: json)'),
+  connectionId: z
+    .string()
+    .optional()
+    .describe(
+      'Connection ID from db_connect (optional, uses default if omitted)'
+    ),
 });
 
 export type Nl2sqlQueryInput = z.infer<typeof nl2sqlQueryInputSchema>;
@@ -48,13 +60,44 @@ export interface Nl2sqlQueryOutput {
 }
 
 /**
+ * ConnectionEntry에서 Config 객체를 빌드합니다.
+ */
+function buildConfigFromEntry(entry: {
+  params: {
+    type: 'postgresql' | 'mysql' | 'oracle';
+    host: string;
+    port: number;
+    user: string;
+    password: string;
+    database: string;
+    serviceName?: string;
+  };
+}): Config {
+  const aiConfig = getAIConfig();
+  return {
+    ai: aiConfig,
+    database: {
+      type: entry.params.type,
+      host: entry.params.host,
+      port: entry.params.port,
+      user: entry.params.user,
+      password: entry.params.password,
+      database: entry.params.database,
+      serviceName: entry.params.serviceName,
+    },
+  };
+}
+
+/**
  * 자연어를 SQL로 변환하고 선택적으로 실행합니다.
  *
  * @param input - 자연어 쿼리 및 옵션
+ * @param connManager - ConnectionManager 인스턴스
  * @returns 변환 결과
  */
 export async function nl2sqlQuery(
-  input: Nl2sqlQueryInput
+  input: Nl2sqlQueryInput,
+  connManager: ConnectionManager
 ): Promise<Nl2sqlQueryOutput> {
   // 입력 검증
   const validation = validateNaturalLanguageInput(input.query);
@@ -65,6 +108,53 @@ export async function nl2sqlQuery(
     };
   }
 
+  // ConnectionManager에서 연결 해석
+  const entry = connManager.resolve(input.connectionId);
+
+  if (entry) {
+    // ConnectionManager 경로
+    try {
+      const metadataCache = await connManager.getOrInitCache(
+        entry.connectionId
+      );
+      const config = buildConfigFromEntry(entry);
+      const engine = new NL2SQLEngine(entry.knex, config, {
+        metadataCache,
+      });
+
+      const result = await engine.process(validation.sanitized, input.execute);
+
+      const output: Nl2sqlQueryOutput = {
+        success: true,
+        sql: result.sql,
+        executed: input.execute,
+      };
+
+      if (input.execute && result.executionResult) {
+        output.results = result.executionResult;
+        output.rowCount = result.executionResult.length;
+      }
+
+      return output;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        success: false,
+        error: `Query error: ${maskSensitiveInfo(message)}`,
+      };
+    }
+  }
+
+  // Legacy 폴백: 환경변수 기반
+  return nl2sqlQueryLegacy(input);
+}
+
+/**
+ * 환경변수 기반 레거시 경로 (하위 호환).
+ */
+async function nl2sqlQueryLegacy(
+  input: Nl2sqlQueryInput
+): Promise<Nl2sqlQueryOutput> {
   let config: Config;
 
   try {
@@ -75,7 +165,7 @@ export async function nl2sqlQuery(
       error instanceof Error ? error.message : 'Unknown configuration error';
     return {
       success: false,
-      error: `Configuration error: ${maskSensitiveInfo(message)}`,
+      error: `Configuration error: ${maskSensitiveInfo(message)}. Use db_connect to establish a connection first.`,
     };
   }
 
@@ -83,7 +173,10 @@ export async function nl2sqlQuery(
     const knex = createConnection(config);
     const engine = new NL2SQLEngine(knex, config);
 
-    const result = await engine.process(validation.sanitized, input.execute);
+    const result = await engine.process(
+      validateNaturalLanguageInput(input.query).sanitized,
+      input.execute
+    );
 
     const output: Nl2sqlQueryOutput = {
       success: true,

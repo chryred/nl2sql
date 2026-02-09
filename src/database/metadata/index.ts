@@ -38,6 +38,7 @@ export {
   invalidateMetadataCache,
   isMetadataCacheInitialized,
   getMetadataCacheStats,
+  loadMetadataCacheIsolated,
 } from './cache.js';
 
 // 쿼리 로더 함수 내보내기
