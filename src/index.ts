@@ -12,7 +12,10 @@ import {
 import { queryCommand } from './cli/commands/query.js';
 import { schemaCommand } from './cli/commands/schema.js';
 import { startInteractiveMode } from './cli/modes/interactive.js';
-import { initializeMetadataCache } from './database/metadata/index.js';
+import {
+  initializeMetadataCache,
+  setupMetadataSchema,
+} from './database/metadata/index.js';
 import {
   NL2SQLError,
   maskSensitiveInfo,
@@ -25,7 +28,11 @@ import {
 
 const program = new Command();
 
-program.name('nl2sql').description('자연어를 SQL 쿼리로 변환').version('1.0.0');
+program
+  .name('nl2sql')
+  .description('자연어를 SQL 쿼리로 변환')
+  .version('1.0.0')
+  .enablePositionalOptions();
 
 program
   .command('query')
@@ -67,6 +74,71 @@ program
   .action(async (options: { format?: 'table' | 'json' | 'prompt' }) => {
     await runWithConnection(async (knex, config) => {
       await schemaCommand(knex, config, { format: options.format });
+    });
+  });
+
+program
+  .command('setup')
+  .description('메타데이터 테이블 자동 생성')
+  .option('-y, --yes', '확인 프롬프트 건너뛰기')
+  .action(async (options: { yes?: boolean }) => {
+    await runWithConnection(async (knex, config) => {
+
+      if (!options.yes) {
+        const readline = await import('readline');
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+        const answer = await new Promise<string>((resolve) => {
+          rl.question(
+            chalk.yellow(
+              `'${config.database.database}' 데이터베이스에 메타데이터 테이블을 생성합니다. 계속하시겠습니까? (y/N) `
+            ),
+            resolve
+          );
+        });
+        rl.close();
+        if (answer.toLowerCase() !== 'y') {
+          console.log(chalk.gray('취소되었습니다.'));
+          return;
+        }
+      }
+
+      const spinner = ora('메타데이터 테이블 생성 중...').start();
+      const result = await setupMetadataSchema(knex, config.database.type);
+      spinner.stop();
+
+      for (const table of result.tables) {
+        switch (table.status) {
+          case 'created':
+            console.log(chalk.green(`  + ${table.tableName}: ${table.message}`));
+            break;
+          case 'skipped':
+            console.log(chalk.gray(`  - ${table.tableName}: ${table.message}`));
+            break;
+          case 'error':
+            console.log(chalk.red(`  ! ${table.tableName}: ${table.message}`));
+            break;
+        }
+      }
+
+      const created = result.tables.filter((t) => t.status === 'created').length;
+      const skipped = result.tables.filter((t) => t.status === 'skipped').length;
+      const errors = result.tables.filter((t) => t.status === 'error').length;
+
+      console.log('');
+      if (result.success) {
+        console.log(
+          chalk.green(`완료: ${created}개 생성, ${skipped}개 스킵`)
+        );
+      } else {
+        console.log(
+          chalk.red(
+            `완료: ${created}개 생성, ${skipped}개 스킵, ${errors}개 오류`
+          )
+        );
+      }
     });
   });
 

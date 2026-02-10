@@ -28,6 +28,8 @@ export type {
   MetadataCache,
   MetadataQueryDefinition,
   MetadataQueryConfig,
+  DdlTableDefinition,
+  DdlConfig,
 } from './types.js';
 
 // 캐시 함수 내보내기
@@ -48,3 +50,7 @@ export {
   SUPPORTED_DB_TYPES,
   isValidDatabaseType,
 } from './query-loader.js';
+
+// 스키마 자동 생성 내보내기
+export { setupMetadataSchema } from './schema-setup.js';
+export type { SchemaSetupResult, TableSetupResult } from './schema-setup.js';

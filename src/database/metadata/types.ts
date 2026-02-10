@@ -319,6 +319,23 @@ export interface MetadataQueryDefinition {
 }
 
 /**
+ * DDL 테이블 정의
+ */
+export interface DdlTableDefinition {
+  name: string;
+  createSql: string;
+  indexes?: string[];
+}
+
+/**
+ * DDL 설정
+ */
+export interface DdlConfig {
+  createSchema?: string;
+  tables: DdlTableDefinition[];
+}
+
+/**
  * 메타데이터 쿼리 설정
  */
 export interface MetadataQueryConfig {
@@ -337,4 +354,5 @@ export interface MetadataQueryConfig {
     patternKeywords: MetadataQueryDefinition;
     codeValuesTemplate?: MetadataQueryDefinition;
   };
+  ddl?: DdlConfig;
 }

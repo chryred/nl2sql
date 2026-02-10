@@ -33,6 +33,10 @@ import {
   cacheRefresh,
   cacheRefreshInputSchema,
 } from './tools/cache-manage.js';
+import {
+  schemaSetup,
+  schemaSetupInputSchema,
+} from './tools/schema-setup.js';
 
 /**
  * MCP 서버 인스턴스를 생성하고 도구들을 등록합니다.
@@ -220,6 +224,30 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     async (args) => {
       const input = cacheRefreshInputSchema.parse(args);
       const result = await cacheRefresh(input, connManager);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // schema_setup 도구 등록
+  server.registerTool(
+    'schema_setup',
+    {
+      description:
+        'Create NL2SQL metadata tables in the connected database. ' +
+        'IMPORTANT: You MUST ask the user for confirmation before calling this tool. ' +
+        'Existing tables will be skipped (idempotent). Optionally specify connectionId.',
+      inputSchema: schemaSetupInputSchema,
+    },
+    async (args) => {
+      const input = schemaSetupInputSchema.parse(args);
+      const result = await schemaSetup(input, connManager);
       return {
         content: [
           {

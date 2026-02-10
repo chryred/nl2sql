@@ -9,7 +9,9 @@
 - **Security**: SQL 인젝션 방지, 프롬프트 인젝션 감지, 민감 정보 마스킹
 - **Output**: Table, JSON, CSV 다양한 출력 형식 지원
 - **CLI**: 간단한 명령어로 SQL 생성 및 실행
-- **MCP Server**: Model Context Protocol 지원 (stdio/SSE)
+- **Interactive REPL**: 대화형 모드로 연속 쿼리 실행
+- **Metadata Auto-Setup**: 메타데이터 테이블 자동 생성 (CLI/MCP)
+- **MCP Server**: Model Context Protocol 지원 (stdio/SSE), 다중 연결 관리
 - **Docker**: 컨테이너 배포 지원
 
 ## Installation
@@ -113,12 +115,50 @@ npm start -- schema --format json
 npm start -- schema --format prompt
 ```
 
+### Setup Metadata Tables
+
+연결된 데이터베이스의 기본 스키마에 NL2SQL 메타데이터 테이블(11개)을 자동 생성합니다.
+기존 테이블은 건너뛰므로 멱등(idempotent)하게 실행할 수 있습니다.
+
+```bash
+# 확인 프롬프트 후 생성
+npm start -- setup
+
+# 확인 없이 바로 생성
+npm start -- setup -y
+```
+
+### Interactive REPL Mode
+
+대화형 모드로 연속적인 자연어 쿼리를 실행합니다.
+
+```bash
+# 기본 모드
+npm start -- interactive
+
+# 자동 실행 모드
+npm start -- interactive --auto-execute
+
+# JSON 출력 형식
+npm start -- interactive --format json
+```
+
+REPL 내부 명령어:
+- `.help` - 도움말
+- `.schema [table]` - 스키마 조회
+- `.format [type]` - 출력 형식 변경 (table/json/csv)
+- `.execute` - 자동 실행 모드 토글
+- `.cache` - 메타데이터 캐시 상태
+- `.exit` - 종료
+
 ## Commands
 
 | Command | Alias | Description |
 |---------|-------|-------------|
 | `query <text>` | `q` | Generate SQL from natural language |
 | `schema` | `s` | Display database schema |
+| `setup` | - | Create metadata tables automatically |
+| `interactive` | `i` | Start interactive REPL mode |
 
 ### Options
 
@@ -144,6 +184,39 @@ WHERE vip_grade IS NOT NULL;
 
 ? Execute this query? (y/N)
 ```
+
+## Metadata Schema Auto-Setup
+
+NL2SQL은 메타데이터 기반으로 더 정확한 SQL을 생성합니다. `setup` 명령어로 연결된 데이터베이스의 **기본 스키마**에 11개 메타데이터 테이블을 자동 생성할 수 있습니다.
+
+### 메타데이터 테이블
+
+| 테이블 | 설명 |
+|--------|------|
+| `table_relationships` | 테이블 간 관계 (FK, 조인 힌트) |
+| `naming_conventions` | 네이밍 규칙 (약어, 접두사 등) |
+| `code_tables` | 공통코드 테이블 정의 |
+| `column_code_mapping` | 컬럼-코드 테이블 매핑 |
+| `code_aliases` | 코드값 한글/영문 별칭 |
+| `glossary_terms` | 비즈니스 용어 사전 |
+| `glossary_aliases` | 용어 별칭 |
+| `glossary_contexts` | 용어 사용 컨텍스트 |
+| `query_patterns` | SQL 쿼리 패턴 |
+| `pattern_parameters` | 패턴 파라미터 |
+| `pattern_keywords` | 패턴 키워드 매핑 |
+
+### 사용 방법
+
+```bash
+# CLI에서 실행
+npm start -- setup           # 확인 후 생성
+npm start -- setup -y        # 확인 없이 바로 생성
+
+# MCP에서 실행 (schema_setup 도구)
+# AI 에이전트가 사용자 확인 후 자동 생성
+```
+
+별도의 `nl2sql` 스키마를 생성할 필요 없이, 연결된 데이터베이스의 기본 스키마에 직접 테이블이 생성됩니다. 이미 존재하는 테이블은 건너뛰므로 안전하게 재실행할 수 있습니다.
 
 ## Security Features
 
@@ -180,9 +253,14 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 | 도구 | 설명 |
 |------|------|
 | `db_test_connection` | 환경변수 DB 연결 테스트 (파라미터 없음) |
-| `db_connect` | 자격증명으로 DB 연결 테스트 |
+| `db_connect` | 자격증명으로 DB 연결 (connectionId 반환) |
+| `db_disconnect` | 등록된 DB 연결 해제 |
+| `db_list_connections` | 활성 DB 연결 목록 조회 |
 | `nl2sql_schema` | 스키마 조회 (json/prompt/summary 형식) |
 | `nl2sql_query` | 자연어 → SQL 변환 및 선택적 실행 |
+| `cache_status` | 메타데이터 캐시 상태 조회 |
+| `cache_refresh` | 메타데이터 캐시 새로고침 (Docker 재기동 불필요) |
+| `schema_setup` | 메타데이터 테이블 자동 생성 (사용자 확인 필수) |
 
 ### stdio 모드 (Claude Desktop 등)
 
@@ -297,16 +375,22 @@ nl2sql_ts/
 │   │   ├── commands/
 │   │   │   ├── query.ts            # Query command
 │   │   │   └── schema.ts           # Schema command
-│   │   └── formatters/
-│   │       └── result-formatter.ts # Output formatters (table/json/csv)
+│   │   ├── formatters/
+│   │   │   └── result-formatter.ts # Output formatters (table/json/csv)
+│   │   └── modes/
+│   │       └── interactive.ts      # Interactive REPL mode
 │   ├── mcp/
 │   │   ├── index.ts                # MCP server entry point
 │   │   ├── server.ts               # MCP server setup & tools
 │   │   ├── tools/
 │   │   │   ├── db-test.ts          # db_test_connection tool
 │   │   │   ├── db-connect.ts       # db_connect tool
+│   │   │   ├── db-disconnect.ts    # db_disconnect tool
+│   │   │   ├── db-list.ts          # db_list_connections tool
 │   │   │   ├── nl2sql-schema.ts    # nl2sql_schema tool
-│   │   │   └── nl2sql-query.ts     # nl2sql_query tool
+│   │   │   ├── nl2sql-query.ts     # nl2sql_query tool
+│   │   │   ├── cache-manage.ts     # cache_status, cache_refresh tools
+│   │   │   └── schema-setup.ts     # schema_setup tool
 │   │   └── transport/
 │   │       └── sse.ts              # SSE transport + auth
 │   ├── config/
@@ -322,13 +406,24 @@ nl2sql_ts/
 │   │       └── anthropic.ts
 │   ├── database/
 │   │   ├── connection.ts           # DB connection factory
+│   │   ├── connection-manager.ts   # Multi-connection manager (MCP)
 │   │   ├── schema-extractor.ts     # Schema extraction
 │   │   ├── schema-loader.ts        # Schema loading utilities
 │   │   ├── types.ts                # Type definitions
-│   │   └── adapters/
-│   │       ├── postgresql.ts
-│   │       ├── mysql.ts
-│   │       └── oracle.ts
+│   │   ├── adapters/
+│   │   │   ├── postgresql.ts
+│   │   │   ├── mysql.ts
+│   │   │   └── oracle.ts
+│   │   ├── metadata/
+│   │   │   ├── index.ts            # Metadata module exports
+│   │   │   ├── types.ts            # Metadata type definitions
+│   │   │   ├── cache.ts            # Metadata cache system
+│   │   │   ├── query-loader.ts     # YAML query loader
+│   │   │   └── schema-setup.ts     # Metadata table auto-creation
+│   │   └── schemas/metadata/
+│   │       ├── postgresql-metadata.yaml  # PostgreSQL queries & DDL
+│   │       ├── mysql-metadata.yaml       # MySQL queries & DDL
+│   │       └── oracle-metadata.yaml      # Oracle queries & DDL
 │   ├── errors/
 │   │   └── index.ts                # Custom error classes & masking
 │   ├── logger/

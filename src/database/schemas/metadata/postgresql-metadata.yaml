@@ -30,7 +30,7 @@ queries:
         polymorphic_type_column,
         polymorphic_type_value,
         description
-      FROM nl2sql.table_relationships
+      FROM table_relationships
       WHERE is_active = TRUE
       ORDER BY source_schema, source_table, source_column
     mapping:
@@ -61,7 +61,7 @@ queries:
         apply_to_schemas,
         exclude_tables,
         description
-      FROM nl2sql.naming_conventions
+      FROM naming_conventions
       WHERE is_active = TRUE
       ORDER BY priority
     mapping:
@@ -93,7 +93,7 @@ queries:
         additional_filter,
         locale_column,
         default_locale
-      FROM nl2sql.code_tables
+      FROM code_tables
       WHERE is_active = TRUE
     mapping:
       codeTableName: code_table_name
@@ -121,7 +121,7 @@ queries:
         m.group_code,
         m.display_name,
         m.include_in_prompt
-      FROM nl2sql.column_code_mapping m
+      FROM column_code_mapping m
       WHERE m.is_active = TRUE
       ORDER BY m.target_schema, m.target_table, m.target_column
     mapping:
@@ -171,7 +171,7 @@ queries:
         code_value,
         alias,
         locale
-      FROM nl2sql.code_aliases
+      FROM code_aliases
       WHERE is_active = TRUE
     mapping:
       codeTableName: code_table_name
@@ -197,7 +197,7 @@ queries:
         definition,
         example_usage,
         priority
-      FROM nl2sql.glossary_terms
+      FROM glossary_terms
       WHERE is_active = TRUE
       ORDER BY priority
     mapping:
@@ -223,7 +223,7 @@ queries:
         alias,
         locale,
         match_type
-      FROM nl2sql.glossary_aliases
+      FROM glossary_aliases
       WHERE is_active = TRUE
     mapping:
       termCode: term_code
@@ -245,7 +245,7 @@ queries:
         sql_condition_oracle,
         required_columns,
         context_definition
-      FROM nl2sql.glossary_contexts
+      FROM glossary_contexts
       WHERE is_active = TRUE
     mapping:
       termCode: term_code
@@ -275,7 +275,7 @@ queries:
         description,
         example_input,
         example_output
-      FROM nl2sql.query_patterns
+      FROM query_patterns
       WHERE is_active = TRUE
       ORDER BY priority
     mapping:
@@ -310,7 +310,7 @@ queries:
         infer_from_column_type,
         description,
         display_order
-      FROM nl2sql.pattern_parameters
+      FROM pattern_parameters
       WHERE is_active = TRUE
       ORDER BY pattern_code, display_order
     mapping:
@@ -337,7 +337,7 @@ queries:
         weight,
         match_type,
         is_required
-      FROM nl2sql.pattern_keywords
+      FROM pattern_keywords
       WHERE is_active = TRUE
     mapping:
       patternCode: pattern_code
@@ -346,3 +346,277 @@ queries:
       weight: weight
       matchType: match_type
       isRequired: is_required
+
+# ============================================================================
+# DDL: 메타데이터 테이블 자동 생성 (기본 스키마)
+# ============================================================================
+ddl:
+  createSchema: ""
+  tables:
+    - name: table_relationships
+      createSql: |
+        CREATE TABLE IF NOT EXISTS table_relationships (
+          id SERIAL PRIMARY KEY,
+          source_schema VARCHAR(128) NOT NULL,
+          source_table VARCHAR(128) NOT NULL,
+          source_column VARCHAR(128) NOT NULL,
+          target_schema VARCHAR(128) NOT NULL,
+          target_table VARCHAR(128) NOT NULL,
+          target_column VARCHAR(128) NOT NULL,
+          relationship_type VARCHAR(20) NOT NULL DEFAULT 'MANY_TO_ONE'
+            CHECK (relationship_type IN ('ONE_TO_ONE','ONE_TO_MANY','MANY_TO_ONE','MANY_TO_MANY')),
+          confidence_level VARCHAR(10) NOT NULL DEFAULT 'HIGH'
+            CHECK (confidence_level IN ('HIGH','MEDIUM','LOW')),
+          join_hint VARCHAR(20)
+            CHECK (join_hint IS NULL OR join_hint IN ('INNER','LEFT','RIGHT')),
+          polymorphic_type_column VARCHAR(128),
+          polymorphic_type_value VARCHAR(128),
+          description TEXT,
+          business_context TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_by VARCHAR(100),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_by VARCHAR(100),
+          CONSTRAINT uk_nl2sql_table_rel
+            UNIQUE (source_schema, source_table, source_column,
+                    target_schema, target_table, target_column)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_rel_source ON table_relationships(source_schema, source_table)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_rel_target ON table_relationships(target_schema, target_table)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_rel_active ON table_relationships(is_active) WHERE is_active = TRUE
+
+    - name: naming_conventions
+      createSql: |
+        CREATE TABLE IF NOT EXISTS naming_conventions (
+          id SERIAL PRIMARY KEY,
+          convention_name VARCHAR(100) NOT NULL UNIQUE,
+          column_pattern VARCHAR(255) NOT NULL,
+          target_table_pattern VARCHAR(255) NOT NULL,
+          target_column_pattern VARCHAR(255) NOT NULL DEFAULT 'id',
+          table_prefix_strip VARCHAR(50),
+          table_suffix_strip VARCHAR(50),
+          apply_pluralization BOOLEAN DEFAULT TRUE,
+          priority INT NOT NULL DEFAULT 100,
+          apply_to_schemas TEXT[],
+          exclude_tables TEXT[],
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          description TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_naming_priority ON naming_conventions(priority, is_active)
+
+    - name: code_tables
+      createSql: |
+        CREATE TABLE IF NOT EXISTS code_tables (
+          id SERIAL PRIMARY KEY,
+          code_table_name VARCHAR(100) NOT NULL UNIQUE,
+          table_schema VARCHAR(128) NOT NULL,
+          table_name VARCHAR(128) NOT NULL,
+          group_code_column VARCHAR(128) NOT NULL,
+          code_column VARCHAR(128) NOT NULL,
+          code_name_column VARCHAR(128) NOT NULL,
+          description_column VARCHAR(128),
+          sort_order_column VARCHAR(128),
+          active_flag_column VARCHAR(128),
+          active_flag_value VARCHAR(50),
+          additional_filter TEXT,
+          locale_column VARCHAR(128),
+          default_locale VARCHAR(10) DEFAULT 'ko',
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          description TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT uk_nl2sql_code_table_loc UNIQUE (table_schema, table_name)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_code_tables_active ON code_tables(is_active) WHERE is_active = TRUE
+
+    - name: column_code_mapping
+      createSql: |
+        CREATE TABLE IF NOT EXISTS column_code_mapping (
+          id SERIAL PRIMARY KEY,
+          target_schema VARCHAR(128) NOT NULL,
+          target_table VARCHAR(128) NOT NULL,
+          target_column VARCHAR(128) NOT NULL,
+          code_table_name VARCHAR(100) NOT NULL
+            REFERENCES code_tables(code_table_name) ON UPDATE CASCADE,
+          group_code VARCHAR(100) NOT NULL,
+          display_name VARCHAR(200),
+          include_in_prompt BOOLEAN NOT NULL DEFAULT TRUE,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          description TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT uk_nl2sql_col_code_mapping
+            UNIQUE (target_schema, target_table, target_column)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_col_mapping_table ON column_code_mapping(target_schema, target_table)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_col_mapping_code ON column_code_mapping(code_table_name, group_code)
+
+    - name: code_aliases
+      createSql: |
+        CREATE TABLE IF NOT EXISTS code_aliases (
+          id SERIAL PRIMARY KEY,
+          code_table_name VARCHAR(100) NOT NULL
+            REFERENCES code_tables(code_table_name) ON UPDATE CASCADE,
+          group_code VARCHAR(100) NOT NULL,
+          code_value VARCHAR(100) NOT NULL,
+          alias VARCHAR(200) NOT NULL,
+          locale VARCHAR(10) DEFAULT 'ko',
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT uk_nl2sql_code_alias
+            UNIQUE (code_table_name, group_code, alias, locale)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_code_alias_lookup ON code_aliases(alias, locale)
+
+    - name: glossary_terms
+      createSql: |
+        CREATE TABLE IF NOT EXISTS glossary_terms (
+          id SERIAL PRIMARY KEY,
+          term_code VARCHAR(100) NOT NULL UNIQUE,
+          term VARCHAR(200) NOT NULL,
+          category VARCHAR(50)
+            CHECK (category IS NULL OR category IN ('CUSTOMER','ORDER','PRODUCT','DATE','STATUS','METRIC','GENERAL')),
+          sql_condition TEXT NOT NULL,
+          sql_condition_mysql TEXT,
+          sql_condition_oracle TEXT,
+          apply_to_tables TEXT[],
+          required_columns TEXT[] NOT NULL,
+          definition TEXT NOT NULL,
+          example_usage TEXT,
+          example_sql TEXT,
+          business_context TEXT,
+          priority INT NOT NULL DEFAULT 100,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_by VARCHAR(100),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_by VARCHAR(100)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_glossary_term ON glossary_terms(term)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_glossary_category ON glossary_terms(category)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_glossary_active ON glossary_terms(is_active) WHERE is_active = TRUE
+
+    - name: glossary_aliases
+      createSql: |
+        CREATE TABLE IF NOT EXISTS glossary_aliases (
+          id SERIAL PRIMARY KEY,
+          term_code VARCHAR(100) NOT NULL
+            REFERENCES glossary_terms(term_code) ON UPDATE CASCADE ON DELETE CASCADE,
+          alias VARCHAR(200) NOT NULL,
+          locale VARCHAR(10) DEFAULT 'ko',
+          match_type VARCHAR(20) NOT NULL DEFAULT 'EXACT'
+            CHECK (match_type IN ('EXACT','CONTAINS','STARTS_WITH','ENDS_WITH','REGEX')),
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT uk_nl2sql_glossary_alias UNIQUE (term_code, alias, locale)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_glossary_alias_lookup ON glossary_aliases(alias, locale)
+
+    - name: glossary_contexts
+      createSql: |
+        CREATE TABLE IF NOT EXISTS glossary_contexts (
+          id SERIAL PRIMARY KEY,
+          term_code VARCHAR(100) NOT NULL
+            REFERENCES glossary_terms(term_code) ON UPDATE CASCADE ON DELETE CASCADE,
+          context_schema VARCHAR(128) NOT NULL,
+          context_table VARCHAR(128) NOT NULL,
+          sql_condition TEXT NOT NULL,
+          sql_condition_mysql TEXT,
+          sql_condition_oracle TEXT,
+          required_columns TEXT[] NOT NULL,
+          context_definition TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT uk_nl2sql_glossary_context
+            UNIQUE (term_code, context_schema, context_table)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_glossary_ctx_table ON glossary_contexts(context_schema, context_table)
+
+    - name: query_patterns
+      createSql: |
+        CREATE TABLE IF NOT EXISTS query_patterns (
+          id SERIAL PRIMARY KEY,
+          pattern_code VARCHAR(100) NOT NULL UNIQUE,
+          pattern_name VARCHAR(200) NOT NULL,
+          category VARCHAR(50)
+            CHECK (category IS NULL OR category IN ('AGGREGATION','REPORT','LOOKUP','ANALYSIS','COMPARISON','TREND','RANKING','GENERAL')),
+          sql_template TEXT NOT NULL,
+          sql_template_mysql TEXT,
+          sql_template_oracle TEXT,
+          applicable_tables TEXT[],
+          required_columns TEXT[],
+          required_joins TEXT[],
+          match_score_threshold INT NOT NULL DEFAULT 70
+            CHECK (match_score_threshold BETWEEN 0 AND 100),
+          priority INT NOT NULL DEFAULT 100,
+          description TEXT NOT NULL,
+          use_case TEXT,
+          example_input TEXT,
+          example_output TEXT,
+          performance_notes TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          usage_count INT NOT NULL DEFAULT 0,
+          last_used_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_by VARCHAR(100),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_by VARCHAR(100)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_category ON query_patterns(category)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_active ON query_patterns(is_active) WHERE is_active = TRUE
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_priority ON query_patterns(priority)
+
+    - name: pattern_parameters
+      createSql: |
+        CREATE TABLE IF NOT EXISTS pattern_parameters (
+          id SERIAL PRIMARY KEY,
+          pattern_code VARCHAR(100) NOT NULL
+            REFERENCES query_patterns(pattern_code) ON UPDATE CASCADE ON DELETE CASCADE,
+          param_name VARCHAR(100) NOT NULL,
+          param_type VARCHAR(30) NOT NULL
+            CHECK (param_type IN ('COLUMN','TABLE','VALUE','DATE','NUMBER','EXPRESSION','CONDITION')),
+          is_required BOOLEAN NOT NULL DEFAULT TRUE,
+          default_value TEXT,
+          allowed_values TEXT[],
+          validation_pattern TEXT,
+          infer_from_keywords TEXT[],
+          infer_from_column_type VARCHAR(50),
+          description TEXT,
+          example_value TEXT,
+          display_order INT NOT NULL DEFAULT 0,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          CONSTRAINT uk_nl2sql_pattern_param UNIQUE (pattern_code, param_name)
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_params ON pattern_parameters(pattern_code)
+
+    - name: pattern_keywords
+      createSql: |
+        CREATE TABLE IF NOT EXISTS pattern_keywords (
+          id SERIAL PRIMARY KEY,
+          pattern_code VARCHAR(100) NOT NULL
+            REFERENCES query_patterns(pattern_code) ON UPDATE CASCADE ON DELETE CASCADE,
+          keyword VARCHAR(100) NOT NULL,
+          locale VARCHAR(10) DEFAULT 'ko',
+          weight INT NOT NULL DEFAULT 10
+            CHECK (weight BETWEEN 1 AND 100),
+          match_type VARCHAR(20) NOT NULL DEFAULT 'CONTAINS'
+            CHECK (match_type IN ('EXACT','CONTAINS','STARTS_WITH','ENDS_WITH','REGEX')),
+          is_required BOOLEAN NOT NULL DEFAULT FALSE,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_kw_lookup ON pattern_keywords(keyword, locale)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_kw_pattern ON pattern_keywords(pattern_code)

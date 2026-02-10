@@ -29,7 +29,7 @@ queries:
         polymorphic_type_column,
         polymorphic_type_value,
         description
-      FROM nl2sql.table_relationships
+      FROM table_relationships
       WHERE is_active = 1
       ORDER BY source_schema, source_table, source_column
     mapping:
@@ -60,7 +60,7 @@ queries:
         apply_to_schemas,
         exclude_tables,
         description
-      FROM nl2sql.naming_conventions
+      FROM naming_conventions
       WHERE is_active = 1
       ORDER BY priority
     mapping:
@@ -92,7 +92,7 @@ queries:
         additional_filter,
         locale_column,
         default_locale
-      FROM nl2sql.code_tables
+      FROM code_tables
       WHERE is_active = 1
     mapping:
       codeTableName: code_table_name
@@ -120,7 +120,7 @@ queries:
         group_code,
         display_name,
         include_in_prompt
-      FROM nl2sql.column_code_mapping
+      FROM column_code_mapping
       WHERE is_active = 1
       ORDER BY target_schema, target_table, target_column
     mapping:
@@ -143,7 +143,7 @@ queries:
         code_value,
         alias,
         locale
-      FROM nl2sql.code_aliases
+      FROM code_aliases
       WHERE is_active = 1
     mapping:
       codeTableName: code_table_name
@@ -169,7 +169,7 @@ queries:
         definition,
         example_usage,
         priority
-      FROM nl2sql.glossary_terms
+      FROM glossary_terms
       WHERE is_active = 1
       ORDER BY priority
     mapping:
@@ -195,7 +195,7 @@ queries:
         alias,
         locale,
         match_type
-      FROM nl2sql.glossary_aliases
+      FROM glossary_aliases
       WHERE is_active = 1
     mapping:
       termCode: term_code
@@ -217,7 +217,7 @@ queries:
         sql_condition_oracle,
         required_columns,
         context_definition
-      FROM nl2sql.glossary_contexts
+      FROM glossary_contexts
       WHERE is_active = 1
     mapping:
       termCode: term_code
@@ -247,7 +247,7 @@ queries:
         description,
         example_input,
         example_output
-      FROM nl2sql.query_patterns
+      FROM query_patterns
       WHERE is_active = 1
       ORDER BY priority
     mapping:
@@ -282,7 +282,7 @@ queries:
         infer_from_column_type,
         description,
         display_order
-      FROM nl2sql.pattern_parameters
+      FROM pattern_parameters
       WHERE is_active = 1
       ORDER BY pattern_code, display_order
     mapping:
@@ -309,7 +309,7 @@ queries:
         weight,
         match_type,
         is_required
-      FROM nl2sql.pattern_keywords
+      FROM pattern_keywords
       WHERE is_active = 1
     mapping:
       patternCode: pattern_code
@@ -318,3 +318,269 @@ queries:
       weight: weight
       matchType: match_type
       isRequired: is_required
+
+# ============================================================================
+# DDL: 메타데이터 테이블 자동 생성 (기본 스키마)
+# ============================================================================
+ddl:
+  createSchema: ""
+  tables:
+    - name: table_relationships
+      createSql: |
+        CREATE TABLE IF NOT EXISTS table_relationships (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          source_schema VARCHAR(128) NOT NULL,
+          source_table VARCHAR(128) NOT NULL,
+          source_column VARCHAR(128) NOT NULL,
+          target_schema VARCHAR(128) NOT NULL,
+          target_table VARCHAR(128) NOT NULL,
+          target_column VARCHAR(128) NOT NULL,
+          relationship_type ENUM('ONE_TO_ONE','ONE_TO_MANY','MANY_TO_ONE','MANY_TO_MANY')
+            NOT NULL DEFAULT 'MANY_TO_ONE',
+          confidence_level ENUM('HIGH','MEDIUM','LOW') NOT NULL DEFAULT 'HIGH',
+          join_hint ENUM('INNER','LEFT','RIGHT') DEFAULT NULL,
+          polymorphic_type_column VARCHAR(128),
+          polymorphic_type_value VARCHAR(128),
+          description TEXT,
+          business_context TEXT,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_by VARCHAR(100),
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          updated_by VARCHAR(100),
+          UNIQUE KEY uk_table_rel (source_schema, source_table, source_column,
+                                   target_schema, target_table, target_column),
+          INDEX idx_rel_source (source_schema, source_table),
+          INDEX idx_rel_target (target_schema, target_table),
+          INDEX idx_rel_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: naming_conventions
+      createSql: |
+        CREATE TABLE IF NOT EXISTS naming_conventions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          convention_name VARCHAR(100) NOT NULL UNIQUE,
+          column_pattern VARCHAR(255) NOT NULL,
+          target_table_pattern VARCHAR(255) NOT NULL,
+          target_column_pattern VARCHAR(255) NOT NULL DEFAULT 'id',
+          table_prefix_strip VARCHAR(50),
+          table_suffix_strip VARCHAR(50),
+          apply_pluralization TINYINT(1) DEFAULT 1,
+          priority INT NOT NULL DEFAULT 100,
+          apply_to_schemas JSON,
+          exclude_tables JSON,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          description TEXT,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_naming_priority (priority, is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: code_tables
+      createSql: |
+        CREATE TABLE IF NOT EXISTS code_tables (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          code_table_name VARCHAR(100) NOT NULL UNIQUE,
+          table_schema VARCHAR(128) NOT NULL,
+          table_name VARCHAR(128) NOT NULL,
+          group_code_column VARCHAR(128) NOT NULL,
+          code_column VARCHAR(128) NOT NULL,
+          code_name_column VARCHAR(128) NOT NULL,
+          description_column VARCHAR(128),
+          sort_order_column VARCHAR(128),
+          active_flag_column VARCHAR(128),
+          active_flag_value VARCHAR(50),
+          additional_filter TEXT,
+          locale_column VARCHAR(128),
+          default_locale VARCHAR(10) DEFAULT 'ko',
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          description TEXT,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_code_table_loc (table_schema, table_name),
+          INDEX idx_code_tables_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: column_code_mapping
+      createSql: |
+        CREATE TABLE IF NOT EXISTS column_code_mapping (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          target_schema VARCHAR(128) NOT NULL,
+          target_table VARCHAR(128) NOT NULL,
+          target_column VARCHAR(128) NOT NULL,
+          code_table_name VARCHAR(100) NOT NULL,
+          group_code VARCHAR(100) NOT NULL,
+          display_name VARCHAR(200),
+          include_in_prompt TINYINT(1) NOT NULL DEFAULT 1,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          description TEXT,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_col_code_mapping (target_schema, target_table, target_column),
+          INDEX idx_col_mapping_table (target_schema, target_table),
+          INDEX idx_col_mapping_code (code_table_name, group_code),
+          CONSTRAINT fk_col_mapping_code_table
+            FOREIGN KEY (code_table_name) REFERENCES code_tables(code_table_name)
+            ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: code_aliases
+      createSql: |
+        CREATE TABLE IF NOT EXISTS code_aliases (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          code_table_name VARCHAR(100) NOT NULL,
+          group_code VARCHAR(100) NOT NULL,
+          code_value VARCHAR(100) NOT NULL,
+          alias VARCHAR(200) NOT NULL,
+          locale VARCHAR(10) DEFAULT 'ko',
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_code_alias (code_table_name, group_code, alias, locale),
+          INDEX idx_code_alias_lookup (alias, locale),
+          CONSTRAINT fk_alias_code_table
+            FOREIGN KEY (code_table_name) REFERENCES code_tables(code_table_name)
+            ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: glossary_terms
+      createSql: |
+        CREATE TABLE IF NOT EXISTS glossary_terms (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          term_code VARCHAR(100) NOT NULL UNIQUE,
+          term VARCHAR(200) NOT NULL,
+          category ENUM('CUSTOMER','ORDER','PRODUCT','DATE','STATUS','METRIC','GENERAL'),
+          sql_condition TEXT NOT NULL,
+          sql_condition_pg TEXT,
+          sql_condition_oracle TEXT,
+          apply_to_tables JSON,
+          required_columns JSON NOT NULL,
+          definition TEXT NOT NULL,
+          example_usage TEXT,
+          example_sql TEXT,
+          business_context TEXT,
+          priority INT NOT NULL DEFAULT 100,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_by VARCHAR(100),
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          updated_by VARCHAR(100),
+          INDEX idx_glossary_term (term),
+          INDEX idx_glossary_category (category),
+          INDEX idx_glossary_active (is_active)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: glossary_aliases
+      createSql: |
+        CREATE TABLE IF NOT EXISTS glossary_aliases (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          term_code VARCHAR(100) NOT NULL,
+          alias VARCHAR(200) NOT NULL,
+          locale VARCHAR(10) DEFAULT 'ko',
+          match_type ENUM('EXACT','CONTAINS','STARTS_WITH','ENDS_WITH','REGEX')
+            NOT NULL DEFAULT 'EXACT',
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_glossary_alias (term_code, alias, locale),
+          INDEX idx_glossary_alias_lookup (alias, locale),
+          CONSTRAINT fk_glossary_alias_term
+            FOREIGN KEY (term_code) REFERENCES glossary_terms(term_code)
+            ON UPDATE CASCADE ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: glossary_contexts
+      createSql: |
+        CREATE TABLE IF NOT EXISTS glossary_contexts (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          term_code VARCHAR(100) NOT NULL,
+          context_schema VARCHAR(128) NOT NULL,
+          context_table VARCHAR(128) NOT NULL,
+          sql_condition TEXT NOT NULL,
+          sql_condition_pg TEXT,
+          sql_condition_oracle TEXT,
+          required_columns JSON NOT NULL,
+          context_definition TEXT,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY uk_glossary_context (term_code, context_schema, context_table),
+          INDEX idx_glossary_ctx_table (context_schema, context_table),
+          CONSTRAINT fk_glossary_ctx_term
+            FOREIGN KEY (term_code) REFERENCES glossary_terms(term_code)
+            ON UPDATE CASCADE ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: query_patterns
+      createSql: |
+        CREATE TABLE IF NOT EXISTS query_patterns (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          pattern_code VARCHAR(100) NOT NULL UNIQUE,
+          pattern_name VARCHAR(200) NOT NULL,
+          category ENUM('AGGREGATION','REPORT','LOOKUP','ANALYSIS','COMPARISON','TREND','RANKING','GENERAL'),
+          sql_template TEXT NOT NULL,
+          sql_template_pg TEXT,
+          sql_template_oracle TEXT,
+          applicable_tables JSON,
+          required_columns JSON,
+          required_joins JSON,
+          match_score_threshold INT NOT NULL DEFAULT 70,
+          priority INT NOT NULL DEFAULT 100,
+          description TEXT NOT NULL,
+          use_case TEXT,
+          example_input TEXT,
+          example_output TEXT,
+          performance_notes TEXT,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          usage_count INT NOT NULL DEFAULT 0,
+          last_used_at TIMESTAMP NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_by VARCHAR(100),
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          updated_by VARCHAR(100),
+          INDEX idx_pattern_category (category),
+          INDEX idx_pattern_active (is_active),
+          INDEX idx_pattern_priority (priority),
+          CONSTRAINT chk_match_score CHECK (match_score_threshold BETWEEN 0 AND 100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: pattern_parameters
+      createSql: |
+        CREATE TABLE IF NOT EXISTS pattern_parameters (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          pattern_code VARCHAR(100) NOT NULL,
+          param_name VARCHAR(100) NOT NULL,
+          param_type ENUM('COLUMN','TABLE','VALUE','DATE','NUMBER','EXPRESSION','CONDITION') NOT NULL,
+          is_required TINYINT(1) NOT NULL DEFAULT 1,
+          default_value TEXT,
+          allowed_values JSON,
+          validation_pattern VARCHAR(255),
+          infer_from_keywords JSON,
+          infer_from_column_type VARCHAR(50),
+          description TEXT,
+          example_value TEXT,
+          display_order INT NOT NULL DEFAULT 0,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          UNIQUE KEY uk_pattern_param (pattern_code, param_name),
+          INDEX idx_pattern_params (pattern_code),
+          CONSTRAINT fk_param_pattern
+            FOREIGN KEY (pattern_code) REFERENCES query_patterns(pattern_code)
+            ON UPDATE CASCADE ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: pattern_keywords
+      createSql: |
+        CREATE TABLE IF NOT EXISTS pattern_keywords (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          pattern_code VARCHAR(100) NOT NULL,
+          keyword VARCHAR(100) NOT NULL,
+          locale VARCHAR(10) DEFAULT 'ko',
+          weight INT NOT NULL DEFAULT 10,
+          match_type ENUM('EXACT','CONTAINS','STARTS_WITH','ENDS_WITH','REGEX')
+            NOT NULL DEFAULT 'CONTAINS',
+          is_required TINYINT(1) NOT NULL DEFAULT 0,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          INDEX idx_pattern_kw_lookup (keyword, locale),
+          INDEX idx_pattern_kw_pattern (pattern_code),
+          CONSTRAINT chk_weight CHECK (weight BETWEEN 1 AND 100),
+          CONSTRAINT fk_kw_pattern
+            FOREIGN KEY (pattern_code) REFERENCES query_patterns(pattern_code)
+            ON UPDATE CASCADE ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

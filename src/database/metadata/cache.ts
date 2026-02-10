@@ -168,25 +168,26 @@ export async function initializeMetadataCache(
 }
 
 /**
- * 메타데이터 스키마 존재 여부를 확인합니다.
+ * 메타데이터 테이블 존재 여부를 확인합니다.
+ * 기본 스키마에서 table_relationships 테이블의 존재를 확인합니다.
  */
 async function checkMetadataSchemaExists(
   knex: Knex,
   dbType: DatabaseType,
-  schemaName: string
+  _schemaName: string
 ): Promise<boolean> {
   try {
     let query: string;
 
     switch (dbType) {
       case 'postgresql':
-        query = `SELECT 1 FROM information_schema.schemata WHERE schema_name = '${schemaName}'`;
+        query = `SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'table_relationships'`;
         break;
       case 'mysql':
-        query = `SELECT 1 FROM information_schema.schemata WHERE schema_name = '${schemaName}'`;
+        query = `SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'table_relationships'`;
         break;
       case 'oracle':
-        query = `SELECT 1 FROM all_users WHERE username = UPPER('${schemaName}')`;
+        query = `SELECT 1 FROM user_tables WHERE table_name = 'TABLE_RELATIONSHIPS'`;
         break;
       default:
         return false;

@@ -104,3 +104,6 @@ mysql -u user -p dbname < sql/mysql/00_create_schema.sql
 sqlplus user/pass@dbname @sql/oracle/00_create_schema.sql
 # ...
 ```
+
+## Operational Guidelines
+1. **변경사항 현행화**: 개선 후 변경사항은 반드시 [문서](README.md)에 현행화 한다.
