@@ -28,6 +28,7 @@ import type {
   RecentQueryInfo,
   SchemaInfo,
 } from './types.js';
+import { logger } from '../logger/index.js';
 
 /**
  * 쿼리 정의 인터페이스
@@ -72,6 +73,14 @@ interface SchemaQueries {
     indexes: QueryDefinition;
     /** 최근 쿼리 패턴 조회 쿼리 */
     recentQueries: QueryDefinition;
+    /** 벌크: 모든 테이블 컬럼 조회 */
+    allColumns?: QueryDefinition;
+    /** 벌크: 모든 테이블 외래키 조회 */
+    allForeignKeys?: QueryDefinition;
+    /** 벌크: 모든 테이블 제약조건 조회 */
+    allConstraints?: QueryDefinition;
+    /** 벌크: 모든 테이블 인덱스 조회 */
+    allIndexes?: QueryDefinition;
   };
 }
 
@@ -288,9 +297,9 @@ export class SchemaLoader {
    * const schema = await loader.extractSchema(knex, 'mydb');
    */
   async extractSchema(knex: Knex, database?: string): Promise<SchemaInfo> {
-    const tables: ExtendedTableInfo[] = [];
+    const startTime = Date.now();
 
-    // Get all tables
+    // 1. Get all tables
     const tablesQuery = this.queries.queries.tables;
     const tableParams = database ? { database } : {};
     const tablesResult = await this.executeQuery<Record<string, unknown>>(
@@ -299,14 +308,19 @@ export class SchemaLoader {
       tableParams
     );
 
+    // 2. Filter system schemas and build table list
+    const filteredTables: Array<{
+      schemaName: string | undefined;
+      tableName: string;
+      tableComment: string | undefined;
+    }> = [];
+
     for (const tableRow of tablesResult) {
-      // 스키마 이름 추출
       const schemaName = (tableRow.schema_name ||
         tableRow.SCHEMA_NAME ||
         tableRow.schemaName ||
         tableRow.OWNER) as string | undefined;
 
-      // 시스템 스키마 제외
       if (schemaName && this.isExcludedSchema(schemaName)) {
         continue;
       }
@@ -319,20 +333,72 @@ export class SchemaLoader {
         tableRow.comment) as string | undefined;
 
       if (!tableName) continue;
-      // Get columns - 스키마 이름을 전달
-      const columns = await this.getColumns(
-        knex,
+
+      filteredTables.push({
+        schemaName: schemaName || undefined,
         tableName,
-        database,
-        schemaName
-      );
-      // Get foreign keys and update columns
-      const fkMap = await this.getForeignKeys(
-        knex,
-        tableName,
-        database,
-        schemaName
-      );
+        tableComment,
+      });
+    }
+
+    // 3. Choose bulk vs per-table extraction
+    const hasBulkQueries =
+      this.queries.queries.allColumns &&
+      this.queries.queries.allForeignKeys &&
+      this.queries.queries.allConstraints &&
+      this.queries.queries.allIndexes;
+
+    let tables: ExtendedTableInfo[];
+    let mode: string;
+
+    if (hasBulkQueries) {
+      try {
+        tables = await this.extractSchemaBulk(knex, filteredTables, database);
+        mode = 'bulk';
+      } catch (error) {
+        logger.warn('Bulk schema extraction failed, falling back to per-table mode', { error });
+        tables = await this.extractSchemaPerTable(knex, filteredTables, database);
+        mode = 'per-table (fallback)';
+      }
+    } else {
+      tables = await this.extractSchemaPerTable(knex, filteredTables, database);
+      mode = 'per-table';
+    }
+
+    // 4. Get recent queries (optional)
+    const recentQueries = await this.getRecentQueries(knex, database);
+
+    const elapsed = Date.now() - startTime;
+    logger.info(`Schema extraction completed`, {
+      mode,
+      tables: tables.length,
+      elapsed: `${(elapsed / 1000).toFixed(1)}s`,
+    });
+
+    return {
+      tables,
+      recentQueries: recentQueries.length > 0 ? recentQueries : undefined,
+    };
+  }
+
+  /**
+   * 테이블별 개별 쿼리로 스키마를 추출합니다. (기존 방식)
+   * @private
+   */
+  private async extractSchemaPerTable(
+    knex: Knex,
+    filteredTables: Array<{
+      schemaName: string | undefined;
+      tableName: string;
+      tableComment: string | undefined;
+    }>,
+    database?: string
+  ): Promise<ExtendedTableInfo[]> {
+    const tables: ExtendedTableInfo[] = [];
+
+    for (const { schemaName, tableName, tableComment } of filteredTables) {
+      const columns = await this.getColumns(knex, tableName, database, schemaName);
+      const fkMap = await this.getForeignKeys(knex, tableName, database, schemaName);
       for (const col of columns) {
         const fkInfo = fkMap.get(col.name);
         if (fkInfo) {
@@ -341,39 +407,206 @@ export class SchemaLoader {
         }
       }
 
-      // Get constraints
-      const constraints = await this.getConstraints(
-        knex,
-        tableName,
-        database,
-        schemaName
-      );
-
-      // Get indexes
-      const indexes = await this.getIndexes(
-        knex,
-        tableName,
-        database,
-        schemaName
-      );
+      const constraints = await this.getConstraints(knex, tableName, database, schemaName);
+      const indexes = await this.getIndexes(knex, tableName, database, schemaName);
 
       tables.push({
-        schemaName: schemaName || undefined,
+        schemaName,
         name: tableName,
-        comment: tableComment || undefined,
+        comment: tableComment,
         columns,
         constraints,
         indexes,
       });
     }
 
-    // Get recent queries (optional)
-    const recentQueries = await this.getRecentQueries(knex, database);
+    return tables;
+  }
 
-    return {
-      tables,
-      recentQueries: recentQueries.length > 0 ? recentQueries : undefined,
+  /**
+   * 벌크 쿼리로 스키마를 추출합니다. (4개 쿼리로 전체 조회 후 JS 그룹핑)
+   * @private
+   */
+  private async extractSchemaBulk(
+    knex: Knex,
+    filteredTables: Array<{
+      schemaName: string | undefined;
+      tableName: string;
+      tableComment: string | undefined;
+    }>,
+    database?: string
+  ): Promise<ExtendedTableInfo[]> {
+    const params: Record<string, unknown> = database ? { database } : {};
+
+    // Execute 4 bulk queries in parallel
+    const [allColumnsRaw, allFKsRaw, allConstraintsRaw, allIndexesRaw] =
+      await Promise.all([
+        this.executeQuery<Record<string, unknown>>(
+          knex,
+          this.queries.queries.allColumns!,
+          params
+        ),
+        this.executeQuery<Record<string, unknown>>(
+          knex,
+          this.queries.queries.allForeignKeys!,
+          params
+        ),
+        this.executeQuery<Record<string, unknown>>(
+          knex,
+          this.queries.queries.allConstraints!,
+          params
+        ),
+        this.executeQuery<Record<string, unknown>>(
+          knex,
+          this.queries.queries.allIndexes!,
+          params
+        ),
+      ]);
+
+    // Group by "schemaName|tableName" key
+    const makeKey = (schema: string | undefined, table: string): string =>
+      `${schema || ''}|${table}`;
+
+    const getSchemaTable = (row: Record<string, unknown>): { schema: string | undefined; table: string } => {
+      const schema = (row.schema_name || row.SCHEMA_NAME || row.OWNER) as string | undefined;
+      const table = (row.table_name || row.TABLE_NAME) as string;
+      return { schema, table };
     };
+
+    // Group columns
+    const columnsMap = new Map<string, Record<string, unknown>[]>();
+    for (const row of allColumnsRaw) {
+      const { schema, table } = getSchemaTable(row);
+      const key = makeKey(schema, table);
+      if (!columnsMap.has(key)) columnsMap.set(key, []);
+      columnsMap.get(key)!.push(row);
+    }
+
+    // Group foreign keys
+    const fkMap = new Map<string, Record<string, unknown>[]>();
+    for (const row of allFKsRaw) {
+      const { schema, table } = getSchemaTable(row);
+      const key = makeKey(schema, table);
+      if (!fkMap.has(key)) fkMap.set(key, []);
+      fkMap.get(key)!.push(row);
+    }
+
+    // Group constraints
+    const constraintsMap = new Map<string, Record<string, unknown>[]>();
+    for (const row of allConstraintsRaw) {
+      const { schema, table } = getSchemaTable(row);
+      const key = makeKey(schema, table);
+      if (!constraintsMap.has(key)) constraintsMap.set(key, []);
+      constraintsMap.get(key)!.push(row);
+    }
+
+    // Group indexes
+    const indexesMap = new Map<string, Record<string, unknown>[]>();
+    for (const row of allIndexesRaw) {
+      const { schema, table } = getSchemaTable(row);
+      const key = makeKey(schema, table);
+      if (!indexesMap.has(key)) indexesMap.set(key, []);
+      indexesMap.get(key)!.push(row);
+    }
+
+    // Build table info using grouped data
+    const tables: ExtendedTableInfo[] = [];
+
+    for (const { schemaName, tableName, tableComment } of filteredTables) {
+      const key = makeKey(schemaName, tableName);
+
+      // Map columns
+      const columnRows = columnsMap.get(key) || [];
+      const columns: ExtendedColumnInfo[] = columnRows.map((row) => ({
+        name: (row.column_name || row.COLUMN_NAME) as string,
+        type: (row.data_type || row.DATA_TYPE) as string,
+        nullable: (row.is_nullable || row.IS_NULLABLE) === 'YES',
+        defaultValue: (row.column_default ||
+          row.COLUMN_DEFAULT ||
+          row.DATA_DEFAULT) as string | null,
+        isPrimaryKey:
+          row.is_primary_key === true ||
+          row.is_primary_key === 1 ||
+          row.IS_PRIMARY_KEY === 1 ||
+          (row.column_key || row.COLUMN_KEY) === 'PRI',
+        isForeignKey: false,
+        comment: (row.column_comment || row.COLUMN_COMMENT) as string | undefined,
+      }));
+
+      // Map foreign keys and apply to columns
+      const fkRows = fkMap.get(key) || [];
+      const fkLookup = new Map<string, { schema?: string; table: string; column: string }>();
+      for (const row of fkRows) {
+        const colName = (row.column_name || row.COLUMN_NAME) as string;
+        const refSchema = (row.foreign_schema_name || row.FOREIGN_SCHEMA_NAME) as string | undefined;
+        const refTable = (row.foreign_table_name || row.FOREIGN_TABLE_NAME) as string;
+        const refColumn = (row.foreign_column_name || row.FOREIGN_COLUMN_NAME) as string;
+        fkLookup.set(colName, { schema: refSchema, table: refTable, column: refColumn });
+      }
+      for (const col of columns) {
+        const fkInfo = fkLookup.get(col.name);
+        if (fkInfo) {
+          col.isForeignKey = true;
+          col.references = fkInfo;
+        }
+      }
+
+      // Map constraints
+      const constraintRows = constraintsMap.get(key) || [];
+      const constraints: ConstraintInfo[] = constraintRows.map((row) => {
+        const columnsRaw = row.COLUMNS || row.columns;
+        let cols: string[];
+        if (Array.isArray(columnsRaw)) {
+          cols = columnsRaw as string[];
+        } else if (typeof columnsRaw === 'string') {
+          cols = columnsRaw.split(',').map((c) => c.trim());
+        } else {
+          cols = [];
+        }
+        return {
+          name: (row.constraint_name || row.CONSTRAINT_NAME) as string,
+          type: (row.constraint_type || row.CONSTRAINT_TYPE) as ConstraintInfo['type'],
+          columns: cols,
+          definition: (row.definition || row.DEFINITION) as string | undefined,
+        };
+      });
+
+      // Map indexes
+      const indexRows = indexesMap.get(key) || [];
+      const indexes: IndexInfo[] = indexRows.map((row) => {
+        const columnsRaw = row.COLUMNS || row.columns;
+        let cols: string[];
+        if (Array.isArray(columnsRaw)) {
+          cols = columnsRaw as string[];
+        } else if (typeof columnsRaw === 'string') {
+          cols = columnsRaw.split(',').map((c) => c.trim());
+        } else {
+          cols = [];
+        }
+        return {
+          name: (row.index_name || row.INDEX_NAME) as string,
+          columns: cols,
+          unique:
+            row.is_unique === true ||
+            row.is_unique === 1 ||
+            row.is_unique === '1' ||
+            row.IS_UNIQUE === 1 ||
+            row.IS_UNIQUE === '1',
+          type: (row.index_type || row.INDEX_TYPE) as string | undefined,
+        };
+      });
+
+      tables.push({
+        schemaName,
+        name: tableName,
+        comment: tableComment,
+        columns,
+        constraints,
+        indexes,
+      });
+    }
+
+    return tables;
   }
 
   /**

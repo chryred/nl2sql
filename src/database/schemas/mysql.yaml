@@ -105,6 +105,82 @@ queries:
       - database
       - tableName
 
+  # 벌크: 모든 테이블의 컬럼 정보 조회
+  allColumns:
+    sql: |
+      SELECT
+        c.TABLE_SCHEMA as schema_name,
+        c.TABLE_NAME as table_name,
+        c.COLUMN_NAME as column_name,
+        c.DATA_TYPE as data_type,
+        c.IS_NULLABLE as is_nullable,
+        c.COLUMN_DEFAULT as column_default,
+        c.COLUMN_KEY as column_key,
+        c.COLUMN_COMMENT as column_comment
+      FROM information_schema.COLUMNS c
+      WHERE c.TABLE_SCHEMA = :database
+      ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION
+    params:
+      - database
+    optional: true
+
+  # 벌크: 모든 테이블의 외래키 정보 조회
+  allForeignKeys:
+    sql: |
+      SELECT
+        kcu.TABLE_SCHEMA as schema_name,
+        kcu.TABLE_NAME as table_name,
+        kcu.COLUMN_NAME as column_name,
+        kcu.REFERENCED_TABLE_SCHEMA as foreign_schema_name,
+        kcu.REFERENCED_TABLE_NAME as foreign_table_name,
+        kcu.REFERENCED_COLUMN_NAME as foreign_column_name
+      FROM information_schema.KEY_COLUMN_USAGE kcu
+      WHERE kcu.TABLE_SCHEMA = :database
+        AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
+    params:
+      - database
+    optional: true
+
+  # 벌크: 모든 테이블의 제약조건 정보 조회
+  allConstraints:
+    sql: |
+      SELECT
+        tc.TABLE_SCHEMA as schema_name,
+        tc.TABLE_NAME as table_name,
+        tc.CONSTRAINT_NAME as constraint_name,
+        tc.CONSTRAINT_TYPE as constraint_type,
+        GROUP_CONCAT(kcu.COLUMN_NAME ORDER BY kcu.ORDINAL_POSITION) as columns
+      FROM information_schema.TABLE_CONSTRAINTS tc
+      JOIN information_schema.KEY_COLUMN_USAGE kcu
+        ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+        AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA
+        AND tc.TABLE_NAME = kcu.TABLE_NAME
+      WHERE tc.TABLE_SCHEMA = :database
+      GROUP BY tc.TABLE_SCHEMA, tc.TABLE_NAME, tc.CONSTRAINT_NAME, tc.CONSTRAINT_TYPE
+      ORDER BY tc.TABLE_SCHEMA, tc.TABLE_NAME, tc.CONSTRAINT_TYPE, tc.CONSTRAINT_NAME
+    params:
+      - database
+    optional: true
+
+  # 벌크: 모든 테이블의 인덱스 정보 조회
+  allIndexes:
+    sql: |
+      SELECT
+        s.TABLE_SCHEMA as schema_name,
+        s.TABLE_NAME as table_name,
+        s.INDEX_NAME as index_name,
+        GROUP_CONCAT(s.COLUMN_NAME ORDER BY s.SEQ_IN_INDEX) as columns,
+        NOT s.NON_UNIQUE as is_unique,
+        s.INDEX_TYPE as index_type
+      FROM information_schema.STATISTICS s
+      WHERE s.TABLE_SCHEMA = :database
+        AND s.INDEX_NAME != 'PRIMARY'
+      GROUP BY s.TABLE_SCHEMA, s.TABLE_NAME, s.INDEX_NAME, s.NON_UNIQUE, s.INDEX_TYPE
+      ORDER BY s.TABLE_SCHEMA, s.TABLE_NAME, s.INDEX_NAME
+    params:
+      - database
+    optional: true
+
   # 최근 쿼리 패턴 조회 (performance_schema 필요)
   recentQueries:
     sql: |
