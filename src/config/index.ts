@@ -129,11 +129,12 @@ const configSchema = z.object({
   /** AI 제공자 설정 */
   ai: z.object({
     /** AI 제공자 (openai 또는 anthropic) */
-    provider: z.enum(['openai', 'anthropic']).default('openai'),
+    provider: z.enum(['openai', 'anthropic', "devx"]).default('openai'),
     /** OpenAI API 키 (OpenAI 사용 시 필수) */
     openaiApiKey: z.string().optional(),
     /** Anthropic API 키 (Anthropic 사용 시 필수) */
     anthropicApiKey: z.string().optional(),
+    devxApiKey: z.string().optional(),
     /** 사용할 AI 모델 (선택적, 기본값은 제공자별 기본 모델) */
     model: z.string().optional(),
   }),

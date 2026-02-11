@@ -63,13 +63,13 @@ async function main(): Promise<void> {
   const server = createMcpServer(connManager);
 
   if (transport === 'sse') {
-    console.log('[MCP] Starting NL2SQL MCP server in SSE mode');
+    console.log('✅[MCP] Starting NL2SQL MCP server in SSE mode');
     startSSEServer(server, { port, authToken });
   } else {
     console.log('[MCP] Starting NL2SQL MCP server in stdio mode');
     const stdioTransport = new StdioServerTransport();
     await server.connect(stdioTransport);
-    console.log('[MCP] Server connected via stdio');
+    console.log('✅[MCP] Server connected via stdio');
   }
 
   // 종료 시 정리
