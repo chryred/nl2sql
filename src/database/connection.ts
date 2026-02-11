@@ -20,6 +20,7 @@
 
 import knex, { Knex } from 'knex';
 import type { Config } from '../config/index.js';
+import { createPostProcessResponse } from './charset-converter.js';
 
 /** 싱글톤 데이터베이스 연결 인스턴스 */
 let connection: Knex | null = null;
@@ -102,14 +103,23 @@ export function createConnection(config: Config): Knex {
   const dbConfig = config.database;
   const client = getKnexClient(dbConfig.type);
 
-  connection = knex({
+  const knexConfig: Knex.Config = {
     client,
     connection: getConnectionConfig(config),
     pool: {
       min: 0,
       max: 5,
     },
-  });
+  };
+
+  // Oracle US7ASCII 등 레거시 캐릭터셋 환경에서 한글 변환
+  if (dbConfig.type === 'oracle' && dbConfig.oracleDataCharset) {
+    knexConfig.postProcessResponse = createPostProcessResponse(
+      dbConfig.oracleDataCharset
+    );
+  }
+
+  connection = knex(knexConfig);
 
   return connection;
 }

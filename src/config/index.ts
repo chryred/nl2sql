@@ -51,6 +51,7 @@ interface ConfigFile {
     password?: string;
     database?: string;
     serviceName?: string;
+    oracleDataCharset?: string;
   };
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
@@ -155,6 +156,8 @@ const configSchema = z.object({
     database: z.string(),
     /** Oracle 서비스 이름 (Oracle 사용 시 선택적) */
     serviceName: z.string().optional(),
+    /** Oracle 데이터 캐릭터셋 (US7ASCII DB에서 한글 변환용, 예: ms949, euc-kr) */
+    oracleDataCharset: z.string().optional(),
   }),
 });
 
@@ -217,6 +220,9 @@ function loadConfig(): Config {
       database: process.env.DB_NAME || configFile.database?.database || '',
       serviceName:
         process.env.DB_SERVICE_NAME || configFile.database?.serviceName,
+      oracleDataCharset:
+        process.env.ORACLE_DATA_CHARSET ||
+        configFile.database?.oracleDataCharset,
     },
   };
 

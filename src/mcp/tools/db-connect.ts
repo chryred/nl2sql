@@ -28,6 +28,12 @@ export const dbConnectInputSchema = z.object({
   password: z.string().describe('Database password'),
   database: z.string().min(1).describe('Database name'),
   serviceName: z.string().optional().describe('Oracle service name (optional)'),
+  oracleDataCharset: z
+    .string()
+    .optional()
+    .describe(
+      'Data charset for Oracle US7ASCII databases (e.g., ms949, euc-kr)'
+    ),
 });
 
 export type DbConnectInput = z.infer<typeof dbConnectInputSchema>;
@@ -84,6 +90,7 @@ export async function dbConnect(
       password: input.password,
       database: input.database,
       serviceName: input.serviceName,
+      oracleDataCharset: input.oracleDataCharset,
     });
 
     // 연결 테스트

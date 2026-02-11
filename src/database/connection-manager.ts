@@ -14,6 +14,7 @@ import type { MetadataCache } from './metadata/types.js';
 import type { DatabaseType } from './types.js';
 import { loadMetadataCacheIsolated } from './metadata/index.js';
 import { logger } from '../logger/index.js';
+import { createPostProcessResponse } from './charset-converter.js';
 
 /**
  * 연결 파라미터
@@ -26,6 +27,8 @@ export interface ConnectionParams {
   password: string;
   database: string;
   serviceName?: string;
+  /** Oracle 데이터 캐릭터셋 (US7ASCII DB에서 한글 변환용, 예: ms949, euc-kr) */
+  oracleDataCharset?: string;
 }
 
 /**
@@ -399,11 +402,20 @@ export class ConnectionManager {
    */
   private createKnexInstance(params: ConnectionParams): Knex {
     const client = this.getKnexClient(params.type);
-    return knexLib({
+    const knexConfig: Knex.Config = {
       client,
       connection: this.getConnectionConfig(params),
       pool: { min: 0, max: this.options.poolMax },
-    });
+    };
+
+    // Oracle US7ASCII 등 레거시 캐릭터셋 환경에서 한글 변환
+    if (params.type === 'oracle' && params.oracleDataCharset) {
+      knexConfig.postProcessResponse = createPostProcessResponse(
+        params.oracleDataCharset
+      );
+    }
+
+    return knexLib(knexConfig);
   }
 
   /**

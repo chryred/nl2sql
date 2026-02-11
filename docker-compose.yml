@@ -32,6 +32,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - DB_SERVICE_NAME=${DB_SERVICE_NAME}
+      - ORACLE_DATA_CHARSET=${ORACLE_DATA_CHARSET}
 
       # AI Provider Configuration
       - NL2SQL_AI_PROVIDER=${NL2SQL_AI_PROVIDER:-openai}
@@ -90,6 +91,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - DB_SERVICE_NAME=${DB_SERVICE_NAME}
+      - ORACLE_DATA_CHARSET=${ORACLE_DATA_CHARSET}
 
       # AI Provider Configuration
       - NL2SQL_AI_PROVIDER=${NL2SQL_AI_PROVIDER:-openai}

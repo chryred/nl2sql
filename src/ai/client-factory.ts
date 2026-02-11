@@ -6,12 +6,12 @@ import { DevX } from './providers/devx.js';
 export function createAIClient(config: Config): AIProvider {
   const { provider, openaiApiKey, anthropicApiKey, devxApiKey, model } = config.ai;
 
-  if (provider === 'devx') {
-    if (!devxApiKey) {
-      throw new Error('DEVX_API_KEY is required for DEVX provider');
-    }
-    return new DevX(devxApiKey, model);
-  }
+  // if (provider === 'devx') {
+  //   if (!devxApiKey) {
+  //     throw new Error('DEVX_API_KEY is required for DEVX provider');
+  //   }
+  //   return new DevX(devxApiKey, model);
+  // }
   
   if (provider === 'anthropic') {
     if (!anthropicApiKey) {

@@ -46,6 +46,7 @@ DB_USER=postgres
 DB_PASSWORD=password
 DB_NAME=mydb
 DB_SERVICE_NAME=           # Oracle only
+ORACLE_DATA_CHARSET=       # Oracle US7ASCII 한글 변환 (예: ms949, euc-kr)
 
 # Logging (optional)
 LOG_LEVEL=info             # Options: debug, info, warn, error, silent
@@ -217,6 +218,31 @@ npm start -- setup -y        # 확인 없이 바로 생성
 ```
 
 별도의 `nl2sql` 스키마를 생성할 필요 없이, 연결된 데이터베이스의 기본 스키마에 직접 테이블이 생성됩니다. 이미 존재하는 테이블은 건너뛰므로 안전하게 재실행할 수 있습니다.
+
+## Oracle Character Set Conversion
+
+US7ASCII 등 레거시 캐릭터셋을 사용하는 Oracle 환경에서 한글(MS949/EUC-KR)이 깨지는 경우, `ORACLE_DATA_CHARSET` 환경변수를 설정하여 자동 변환할 수 있습니다.
+
+```bash
+# .env 또는 환경변수
+ORACLE_DATA_CHARSET=ms949
+```
+
+설정 파일(`nl2sql.config.yaml`)로도 지정 가능합니다:
+```yaml
+database:
+  type: oracle
+  host: localhost
+  port: 1521
+  user: appuser
+  password: appuser
+  database: AMUS
+  oracleDataCharset: ms949
+```
+
+MCP `db_connect` 도구에서도 `oracleDataCharset` 파라미터로 지정할 수 있습니다.
+
+**지원 인코딩:** `ms949`, `euc-kr`, `cp949` 등 (`iconv-lite` 지원 인코딩)
 
 ## Security Features
 
@@ -407,6 +433,7 @@ nl2sql_ts/
 │   ├── database/
 │   │   ├── connection.ts           # DB connection factory
 │   │   ├── connection-manager.ts   # Multi-connection manager (MCP)
+│   │   ├── charset-converter.ts    # Oracle charset conversion (US7ASCII→UTF-8)
 │   │   ├── schema-extractor.ts     # Schema extraction
 │   │   ├── schema-loader.ts        # Schema loading utilities
 │   │   ├── types.ts                # Type definitions
@@ -468,3 +495,6 @@ nl2sql_ts/
 ## License
 
 MIT
+
+
+    // "@devx/mcp-sdk": "latest",

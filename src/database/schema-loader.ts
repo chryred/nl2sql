@@ -350,9 +350,10 @@ export class SchemaLoader {
 
     let tables: ExtendedTableInfo[];
     let mode: string;
-
+    // console.log("================", hasBulkQueries);
     if (hasBulkQueries) {
       try {
+        console.log("test");
         tables = await this.extractSchemaBulk(knex, filteredTables, database);
         mode = 'bulk';
       } catch (error) {

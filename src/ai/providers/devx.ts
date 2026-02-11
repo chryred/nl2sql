@@ -1,7 +1,7 @@
+// @ts-ignore
 import { DevXSDK } from '@devx/mcp-sdk';
 import type { AIProvider } from './openai.js';
 
-import { DevXMCPServer, ConfluenceClient } from '@devx/mcp-sdk';
 
 export class DevX implements AIProvider {
   private client: DevXSDK;
