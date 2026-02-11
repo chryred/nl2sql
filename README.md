@@ -225,7 +225,7 @@ US7ASCII 등 레거시 캐릭터셋을 사용하는 Oracle 환경에서 한글(M
 
 ```bash
 # .env 또는 환경변수
-ORACLE_DATA_CHARSET=ms949
+ORACLE_DATA_CHARSET=UTF-8
 ```
 
 설정 파일(`nl2sql.config.yaml`)로도 지정 가능합니다:
@@ -495,6 +495,3 @@ nl2sql_ts/
 ## License
 
 MIT
-
-
-    // "@devx/mcp-sdk": "latest",

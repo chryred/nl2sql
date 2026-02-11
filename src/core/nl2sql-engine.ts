@@ -32,6 +32,7 @@ import {
   initializeMetadataCache,
 } from '../database/metadata/index.js';
 import type { MetadataCache } from '../database/metadata/types.js';
+import { logger } from '../logger/index.js';
 
 /**
  * NL2SQL 처리 결과 인터페이스

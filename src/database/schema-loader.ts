@@ -307,7 +307,7 @@ export class SchemaLoader {
       tablesQuery,
       tableParams
     );
-
+    
     // 2. Filter system schemas and build table list
     const filteredTables: Array<{
       schemaName: string | undefined;
@@ -340,7 +340,7 @@ export class SchemaLoader {
         tableComment,
       });
     }
-
+    
     // 3. Choose bulk vs per-table extraction
     const hasBulkQueries =
       this.queries.queries.allColumns &&
@@ -350,10 +350,9 @@ export class SchemaLoader {
 
     let tables: ExtendedTableInfo[];
     let mode: string;
-    // console.log("================", hasBulkQueries);
+
     if (hasBulkQueries) {
       try {
-        console.log("test");
         tables = await this.extractSchemaBulk(knex, filteredTables, database);
         mode = 'bulk';
       } catch (error) {

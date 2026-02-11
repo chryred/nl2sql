@@ -246,8 +246,11 @@ export function maskSensitiveInfo(message: string): string {
   );
 
   // 호스트명 마스킹 (localhost 제외)
+  // - 2+ 세그먼트 (a.b.c) 형태는 항상 마스킹
+  // - 1 세그먼트 (a.b) 형태는 포트(:숫자)나 경로(/)가 뒤따를 때만 마스킹
+  // - 스키마명.테이블명 (예: ADMIN.STORES) 오탐 방지
   masked = masked.replace(
-    /(?<!@)([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}(?=:\d|\/|$|\s)/g,
+    /(?<!@)(?:([a-zA-Z0-9][-a-zA-Z0-9]*\.){2,}[a-zA-Z]{2,}(?=:\d|\/|$|\s)|([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}(?=:\d|\/))/g,
     (match) => {
       if (match === 'localhost' || match === '127.0.0.1') return match;
       const parts = match.split('.');

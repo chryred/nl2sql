@@ -260,30 +260,32 @@ queries:
   # 벌크: 모든 테이블의 컬럼 정보 조회
   allColumns:
     sql: |
-      SELECT
-        c.OWNER as schema_name,
-        c.TABLE_NAME as table_name,
-        c.COLUMN_NAME as column_name,
-        c.DATA_TYPE as data_type,
-        CASE WHEN c.NULLABLE = 'Y' THEN 'YES' ELSE 'NO' END as is_nullable,
-        c.DATA_DEFAULT as column_default,
-        CASE
-          WHEN EXISTS (
-            SELECT 1 FROM ALL_CONS_COLUMNS acc
-            JOIN ALL_CONSTRAINTS ac ON acc.CONSTRAINT_NAME = ac.CONSTRAINT_NAME
-              AND acc.OWNER = ac.OWNER
-            WHERE ac.CONSTRAINT_TYPE = 'P'
-              AND acc.OWNER = c.OWNER
-              AND acc.TABLE_NAME = c.TABLE_NAME
-              AND acc.COLUMN_NAME = c.COLUMN_NAME
-          ) THEN 1 ELSE 0
-        END as is_primary_key,
-        cc.COMMENTS as column_comment
-      FROM ALL_TAB_COLUMNS c
+      SELECT /*+ GATHER_PLAN_STATISTICS */
+          c.OWNER as schema_name,
+          c.TABLE_NAME as table_name,
+          c.COLUMN_NAME as column_name,
+          c.DATA_TYPE as data_type,
+          DECODE(c.NULLABLE, 'Y', 'YES', 'NO') as is_nullable,
+          c.DATA_DEFAULT as column_default,
+          DECODE(pk.COLUMN_NAME, NULL, 0, 1) as is_primary_key,
+          cc.COMMENTS as column_comment
+      FROM ALL_TAB_COLUMNS c -- 권한이 없다면 ALL_TAB_COLUMNS 유지
       LEFT JOIN ALL_COL_COMMENTS cc
-        ON c.OWNER = cc.OWNER
-        AND c.TABLE_NAME = cc.TABLE_NAME
-        AND c.COLUMN_NAME = cc.COLUMN_NAME
+          ON  c.OWNER = cc.OWNER
+          AND c.TABLE_NAME = cc.TABLE_NAME
+          AND c.COLUMN_NAME = cc.COLUMN_NAME
+      LEFT JOIN (
+          -- PK 정보를 미리 추출하여 조인 (Inline View)
+          SELECT acc.OWNER, acc.TABLE_NAME, acc.COLUMN_NAME
+          FROM ALL_CONSTRAINTS ac
+          JOIN ALL_CONS_COLUMNS acc 
+              ON  ac.OWNER = acc.OWNER 
+              AND ac.CONSTRAINT_NAME = acc.CONSTRAINT_NAME
+          WHERE ac.CONSTRAINT_TYPE = 'P'
+      ) pk
+          ON  c.OWNER = pk.OWNER
+          AND c.TABLE_NAME = pk.TABLE_NAME
+          AND c.COLUMN_NAME = pk.COLUMN_NAME
       ORDER BY c.OWNER, c.TABLE_NAME, c.COLUMN_ID
     optional: true
 

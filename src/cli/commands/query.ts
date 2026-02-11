@@ -119,7 +119,6 @@ export async function queryCommand(
     schemaSpinner.fail('스키마 추출 실패');
     throw error;
   }
-
   // Generate SQL
   const sqlSpinner = ora('SQL 생성 중...').start();
   let sql: string;

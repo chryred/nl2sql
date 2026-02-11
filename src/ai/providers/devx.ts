@@ -1,6 +1,7 @@
 // @ts-ignore
 import { DevXSDK } from '@devx/mcp-sdk';
 import type { AIProvider } from './openai.js';
+import { logger } from '../../logger/index.js';
 
 
 export class DevX implements AIProvider {
@@ -18,9 +19,9 @@ export class DevX implements AIProvider {
       `#Role
       You are a SQL expert. Generate only valid SQL queries based on the provided schema and natural language request. Return ONLY the SQL query without any explanation or markdown formatting.
       `;
-    console.log("==========================");
-    console.log(prompt);
-    console.log("==========================");
+    logger.info("==========================");
+    logger.info(prompt);
+    logger.info("==========================");
     
     const merge_prompt = system_prompt + prompt;
     const response = await this.client.callAgent({
