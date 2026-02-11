@@ -1,6 +1,7 @@
 import type { Config } from '../config/index.js';
 import { OpenAIProvider, type AIProvider } from './providers/openai.js';
 import { AnthropicProvider } from './providers/anthropic.js';
+import { DevX } from './providers/devx.js';
 
 export function createAIClient(config: Config): AIProvider {
   const { provider, openaiApiKey, anthropicApiKey, devxApiKey, model } = config.ai;
@@ -9,7 +10,7 @@ export function createAIClient(config: Config): AIProvider {
     if (!devxApiKey) {
       throw new Error('DEVX_API_KEY is required for DEVX provider');
     }
-    return new AnthropicProvider(devxApiKey, model);
+    return new DevX(devxApiKey, model);
   }
   
   if (provider === 'anthropic') {

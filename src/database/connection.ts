@@ -139,7 +139,7 @@ export async function testConnection(knexInstance: Knex): Promise<boolean> {
       clientConfig.client === 'oracledb' ? 'SELECT 1 FROM DUAL' : 'SELECT 1';
     await knexInstance.raw(testQuery);
     return true;
-  } catch {
+  } catch(error) {
     return false;
   }
 }

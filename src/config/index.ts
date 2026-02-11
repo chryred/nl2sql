@@ -37,10 +37,11 @@ dotenvConfig();
  */
 interface ConfigFile {
   ai?: {
-    provider?: 'openai' | 'anthropic';
+    provider?: 'openai' | 'anthropic' | 'devx';
     model?: string;
     openaiApiKey?: string;
     anthropicApiKey?: string;
+    devxApiKey?: string;
   };
   database?: {
     type?: 'postgresql' | 'mysql' | 'oracle';
@@ -201,6 +202,7 @@ function loadConfig(): Config {
       openaiApiKey: process.env.OPENAI_API_KEY || configFile.ai?.openaiApiKey,
       anthropicApiKey:
         process.env.ANTHROPIC_API_KEY || configFile.ai?.anthropicApiKey,
+      devxApiKey: process.env.DEVX_API_KEY || configFile.ai?.devxApiKey,
       model: process.env.NL2SQL_MODEL || configFile.ai?.model,
     },
     database: {

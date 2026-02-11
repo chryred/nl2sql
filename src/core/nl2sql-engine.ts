@@ -132,6 +132,7 @@ export class NL2SQLEngine {
       return this.cachedSchema;
     }
     this.cachedSchema = await extractSchema(this.knex, this.config);
+    //this.cachedSchema = {tables:[], recentQueries:[]}; // 임시 처리
     return this.cachedSchema;
   }
 
@@ -222,7 +223,7 @@ export class NL2SQLEngine {
   async generateSQL(naturalLanguageQuery: string): Promise<string> {
     const schema = await this.getSchema();
     const metadata = await this.getMetadata();
-
+    
     const prompt = buildPrompt({
       tables: schema,
       naturalLanguageQuery,
