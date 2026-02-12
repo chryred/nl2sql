@@ -2,6 +2,8 @@
 import { DevXSDK } from '@devx/mcp-sdk';
 import type { AIProvider } from './openai.js';
 import { logger } from '../../logger/index.js';
+import { existsSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
 
 export class DevX implements AIProvider {
@@ -14,15 +16,18 @@ export class DevX implements AIProvider {
   }
 
   async generateSQL(prompt: string): Promise<string> {
-    
     const system_prompt = 
-      `#Role
-      You are a SQL expert. Generate only valid SQL queries based on the provided schema and natural language request. Return ONLY the SQL query without any explanation or markdown formatting.
+      `#역할
+      당신은 SQL 전문가입니다. 제공된 스키마와 자연어 요청을 기반으로 유효한 SQL 쿼리만 생성하세요. 설명이나 마크다운 형식 없이 오직 SQL 쿼리만 반환하세요.
       `;
     logger.info("==========================");
     logger.info(prompt);
     logger.info("==========================");
     
+    const cwd = process.cwd();
+    const filePath = join(cwd, "user_prompt.md");
+    writeFileSync(filePath, prompt, { encoding: 'utf-8' });
+
     const merge_prompt = system_prompt + prompt;
     const response = await this.client.callAgent({
       agentCode: this.model,
