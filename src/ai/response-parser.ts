@@ -124,9 +124,9 @@ export function parseSQL(response: string): string {
     .trim();
 
   // Ensure it ends with semicolon
-  if (!sql.endsWith(';')) {
-    sql += ';';
-  }
+  // if (!sql.endsWith(';')) {
+  //   sql += ';';
+  // }
 
   return sql;
 }

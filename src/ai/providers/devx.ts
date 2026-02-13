@@ -24,9 +24,9 @@ export class DevX implements AIProvider {
     // logger.info(prompt);
     // logger.info("==========================");
     
-    const cwd = process.cwd();
-    const filePath = join(cwd, "user_prompt.md");
-    writeFileSync(filePath, prompt, { encoding: 'utf-8' });
+    // const cwd = process.cwd();
+    // const filePath = join(cwd, "user_prompt.md");
+    // writeFileSync(filePath, prompt, { encoding: 'utf-8' });
 
     // const merge_prompt = system_prompt + prompt;
     // const response = await this.client.callAgent({

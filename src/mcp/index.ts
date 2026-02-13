@@ -26,7 +26,6 @@ import { createMcpServer } from './server.js';
 import { startSSEServer } from './transport/sse.js';
 import { ConnectionManager } from '../database/connection-manager.js';
 import { getConfig, validateConfig } from '../config/index.js';
-import { initializeOracleDriver } from '../database/oracle-driver-setup.js';
 
 /**
  * MCP 서버를 시작합니다.
@@ -46,15 +45,6 @@ async function main(): Promise<void> {
   try {
     const config = getConfig();
     validateConfig(config);
-
-    // Oracle: Thick 모드 초기화 (한글 캐릭터셋 변환용)
-    // if (config.database.type === 'oracle' && config.database.oracleDataCharset) {
-    //   await initializeOracleDriver({
-    //     clientMode: config.database.oracleClientMode,
-    //     oracleClientPath: config.database.oracleClientPath,
-    //     oracleDataCharset: config.database.oracleDataCharset,
-    //   });
-    // }
 
     connManager.registerDefault({
       type: config.database.type,

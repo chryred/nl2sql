@@ -166,7 +166,7 @@ queries:
               AND acc.COLUMN_NAME = c.COLUMN_NAME
           ) THEN 1 ELSE 0
         END as is_primary_key,
-        cc.COMMENTS as column_comment
+        UTL_RAW.CAST_TO_RAW(cc.COMMENTS) as column_comment
       FROM ALL_TAB_COLUMNS c
       LEFT JOIN ALL_COL_COMMENTS cc
         ON c.OWNER = cc.OWNER

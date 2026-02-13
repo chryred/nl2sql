@@ -29,7 +29,7 @@ queries:
         join_hint,
         polymorphic_type_column,
         polymorphic_type_value,
-        description
+        UTL_RAW.CAST_TO_RAW(description) as description
       FROM table_relationships
       WHERE is_active = 1
       ORDER BY source_schema, source_table, source_column
@@ -60,7 +60,7 @@ queries:
         priority,
         apply_to_schemas,
         exclude_tables,
-        description
+        UTL_RAW.CAST_TO_RAW(description) as description
       FROM naming_conventions
       WHERE is_active = 1
       ORDER BY priority
@@ -117,7 +117,7 @@ queries:
         target_column,
         code_table_name,
         group_code,
-        display_name,
+        UTL_RAW.CAST_TO_RAW(display_name) as display_name,
         include_in_prompt
       FROM column_code_mapping
       WHERE is_active = 1
@@ -140,7 +140,7 @@ queries:
         code_table_name,
         group_code,
         code_value,
-        alias,
+        UTL_RAW.CAST_TO_RAW(alias) as alias,
         locale
       FROM code_aliases
       WHERE is_active = 1
@@ -158,15 +158,15 @@ queries:
     sql: |
       SELECT
         term_code,
-        term,
+        UTL_RAW.CAST_TO_RAW(term) as term,
         category,
         sql_condition,
         sql_condition_pg,
         sql_condition_mysql,
         apply_to_tables,
         required_columns,
-        definition,
-        example_usage,
+        UTL_RAW.CAST_TO_RAW(definition) as definition,
+        UTL_RAW.CAST_TO_RAW(example_usage) as example_usage,
         priority
       FROM glossary_terms
       WHERE is_active = 1
@@ -191,7 +191,7 @@ queries:
     sql: |
       SELECT
         term_code,
-        alias,
+        UTL_RAW.CAST_TO_RAW(alias) as alias,
         locale,
         match_type
       FROM glossary_aliases
@@ -215,7 +215,7 @@ queries:
         sql_condition_pg,
         sql_condition_mysql,
         required_columns,
-        context_definition
+        UTL_RAW.CAST_TO_RAW(context_definition) as context_definition
       FROM glossary_contexts
       WHERE is_active = 1
     mapping:
@@ -243,9 +243,9 @@ queries:
         required_joins,
         match_score_threshold,
         priority,
-        description,
-        example_input,
-        example_output
+        UTL_RAW.CAST_TO_RAW(description) as description,
+        UTL_RAW.CAST_TO_RAW(example_input) as example_input,
+        UTL_RAW.CAST_TO_RAW(example_output) as example_output
       FROM query_patterns
       WHERE is_active = 1
       ORDER BY priority
@@ -279,7 +279,7 @@ queries:
         allowed_values,
         infer_from_keywords,
         infer_from_column_type,
-        description,
+        UTL_RAW.CAST_TO_RAW(description) as description,
         display_order
       FROM pattern_parameters
       WHERE is_active = 1
@@ -303,7 +303,7 @@ queries:
     sql: |
       SELECT
         pattern_code,
-        keyword,
+        UTL_RAW.CAST_TO_RAW(keyword) as keyword,
         locale,
         weight,
         match_type,

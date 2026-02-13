@@ -10,7 +10,7 @@ export function createAIClient(config: Config): AIProvider {
     if (!devxApiKey) {
       throw new Error('DEVX_API_KEY is required for DEVX provider');
     }
-    return new DevX(devxApiKey, model);
+    return new AnthropicProvider(devxApiKey, model);
   }
   
   if (provider === 'anthropic') {

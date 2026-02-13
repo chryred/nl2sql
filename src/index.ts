@@ -4,13 +4,11 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { getConfig, validateConfig } from './config/index.js';
-import iconv from 'iconv-lite';
 import {
   createConnection,
   testConnection,
   closeConnection,
 } from './database/connection.js';
-import { initializeOracleDriver } from './database/oracle-driver-setup.js';
 import { queryCommand } from './cli/commands/query.js';
 import { schemaCommand } from './cli/commands/schema.js';
 import { startInteractiveMode } from './cli/modes/interactive.js';
@@ -242,36 +240,12 @@ async function runWithConnection(
     ? `${config.database.type} database`
     : `${config.database.type}://${maskSensitiveInfo(config.database.host)}:${config.database.port}/${config.database.database}`;
 
-  // Oracle: Thick 모드 초기화 (한글 캐릭터셋 변환용)
-  // if (config.database.type === 'oracle' && config.database.oracleDataCharset) {
-  //   await initializeOracleDriver({
-  //     clientMode: config.database.oracleClientMode,
-  //     oracleClientPath: config.database.oracleClientPath,
-  //     oracleDataCharset: config.database.oracleDataCharset,
-  //   });
-  // }
-
   const spinner = ora(`${connectionInfo}에 연결 중...`).start();
 
   let knex;
   try {
     knex = createConnection(config);
     const connected = await testConnection(knex);
-    console.log("===============");
-    // const rows = await knex.raw('select UTL_RAW.CAST_TO_RAW(cust_busi_nm) AS cust_busi_nm from s_customer_target_h_enc where rownum < 2');
-    // console.log(rows[0].CUST_BUSI_NM);
-    // const param = iconv.encode("한글", "ms949").toString("latin1");
-    // const bufParam = iconv.encode("한글", "ms949");
-    // console.log(bufParam.toString());
-    // const insertRow = await knex.raw(`INSERT INTO tt_test(name) VALUES('${param}')`);
-    // console.log(insertRow);
-
-    // const rawBytes = Buffer.from(rows[0].CUST_BUSI_NM, 'latin1');
-    // console.log("=======================");
-    // console.log(rawBytes);
-    // console.log("=======================");
-    // console.log(iconv.decode(rawBytes, "ms949"));
-   
     if (!connected) {
       spinner.fail('데이터베이스 연결 실패');
       process.exit(1);

@@ -232,6 +232,7 @@ export class NL2SQLEngine {
       metadata,
     });
 
+    console.log(prompt);
     const response = await this.aiClient.generateSQL(prompt);
     const sql = parseSQL(response);
 
