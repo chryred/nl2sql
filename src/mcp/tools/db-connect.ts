@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { maskSensitiveInfo } from '../../errors/index.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
+import { initializeOracleDriver } from '../../database/oracle-driver-setup.js';
 
 /**
  * db_connect 도구의 입력 스키마
@@ -81,6 +82,13 @@ export async function dbConnect(
   const port = input.port || getDefaultPort(input.type);
 
   try {
+    // Oracle: Thick 모드 초기화 (한글 캐릭터셋 변환용)
+    if (input.type === 'oracle' && input.oracleDataCharset) {
+      await initializeOracleDriver({
+        oracleDataCharset: input.oracleDataCharset,
+      });
+    }
+
     // ConnectionManager에 등록 (Knex 풀 생성)
     const { connectionId, isNew } = connManager.register({
       type: input.type,

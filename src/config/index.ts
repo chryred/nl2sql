@@ -52,6 +52,8 @@ interface ConfigFile {
     database?: string;
     serviceName?: string;
     oracleDataCharset?: string;
+    oracleClientMode?: 'thin' | 'thick' | 'auto';
+    oracleClientPath?: string;
   };
   logging?: {
     level?: 'debug' | 'info' | 'warn' | 'error';
@@ -158,6 +160,10 @@ const configSchema = z.object({
     serviceName: z.string().optional(),
     /** Oracle 데이터 캐릭터셋 (US7ASCII DB에서 한글 변환용, 예: ms949, euc-kr) */
     oracleDataCharset: z.string().optional(),
+    /** Oracle 클라이언트 모드 (thin: Thin 모드, thick: Thick 모드 필수, auto: 자동 감지) */
+    oracleClientMode: z.enum(['thin', 'thick', 'auto']).optional(),
+    /** Oracle Instant Client 라이브러리 경로 (Thick 모드 시) */
+    oracleClientPath: z.string().optional(),
   }),
 });
 
@@ -223,6 +229,12 @@ function loadConfig(): Config {
       oracleDataCharset:
         process.env.ORACLE_DATA_CHARSET ||
         configFile.database?.oracleDataCharset,
+      oracleClientMode:
+        process.env.ORACLE_CLIENT_MODE ||
+        configFile.database?.oracleClientMode,
+      oracleClientPath:
+        process.env.ORACLE_CLIENT_PATH ||
+        configFile.database?.oracleClientPath,
     },
   };
 

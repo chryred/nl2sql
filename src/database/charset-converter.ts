@@ -5,16 +5,25 @@
  * US7ASCII 등 레거시 캐릭터셋을 사용하는 Oracle 환경에서
  * MS949(EUC-KR) 등으로 저장된 한글 데이터를 올바르게 디코딩합니다.
  *
- * 일반적인 레거시 패턴:
- * 1. 원본 한글 → MS949 바이트로 인코딩
- * 2. ISO8859-1 패스스루로 US7ASCII DB에 저장
- * 3. 읽을 때: Latin1로 해석된 깨진 문자열 → 원본 바이트 복원 → MS949 디코딩
+ * Thick 모드 (Oracle Instant Client 필요):
+ * 1. NLS_LANG='.WE8ISO8859P1' 설정으로 Latin1 바이트 패스스루
+ * 2. oracledb가 Latin1 → UTF-8 변환 (코드포인트 보존)
+ * 3. Buffer.from(value, 'latin1')로 원본 바이트 복원
+ * 4. iconv-lite로 실제 캐릭터셋(ms949 등) 디코딩
+ *
+ * Thin 모드:
+ * oracledb Thin 모드는 AL32UTF8을 강제하여 바이트가 손상됩니다.
+ * 한글 변환이 정상 동작하지 않으므로 경고를 출력합니다.
  *
  * @module database/charset-converter
  */
 
 import iconv from 'iconv-lite';
 import { logger } from '../logger/index.js';
+import { isThickModeActive } from './oracle-driver-setup.js';
+
+/** Thin 모드 경고 중복 출력 방지 */
+let thinModeWarned = false;
 
 /**
  * 문자열이 순수 ASCII(0x00-0x7F)인지 확인합니다.
@@ -33,6 +42,15 @@ export function isPureAscii(str: string): boolean {
 /**
  * Latin1로 잘못 해석된 문자열을 원래 캐릭터셋으로 디코딩합니다.
  *
+ * @description
+ * Thick 모드에서는 NLS_LANG='.WE8ISO8859P1' 설정에 의해
+ * Oracle Client가 바이트를 Latin1 코드포인트로 전달합니다.
+ * Buffer.from(value, 'latin1')으로 원본 바이트를 복원한 후
+ * iconv-lite로 실제 캐릭터셋으로 디코딩합니다.
+ *
+ * Thin 모드에서는 oracledb가 AL32UTF8을 강제하여
+ * 바이트가 이미 손상되어 복구할 수 없습니다.
+ *
  * @param value - Latin1로 해석된 깨진 문자열
  * @param charset - 실제 데이터 인코딩 (예: 'ms949', 'euc-kr')
  * @returns 올바르게 디코딩된 UTF-8 문자열
@@ -42,8 +60,22 @@ export function convertOracleCharset(
   charset: string
 ): string {
   if (!value || isPureAscii(value)) return value;
-  const rawBytes = Buffer.from(value, 'latin1');
-  return iconv.decode(rawBytes, charset);
+
+  if (isThickModeActive()) {
+    // Thick 모드: Latin1 바이트 패스스루로 원본 바이트 복원 가능
+    const rawBytes = Buffer.from(value, 'latin1');
+    return iconv.decode(rawBytes, charset);
+  }
+
+  // Thin 모드: 바이트 이미 손상, 복구 불가
+  if (!thinModeWarned) {
+    logger.warn(
+      'Oracle Thin mode: charset conversion cannot recover original bytes. ' +
+        'Install Oracle Instant Client and set ORACLE_CLIENT_MODE=auto for proper Korean/CJK support.'
+    );
+    thinModeWarned = true;
+  }
+  return value;
 }
 
 /**

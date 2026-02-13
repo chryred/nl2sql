@@ -25,9 +25,9 @@ RUN npm run build
 RUN npm prune --production
 
 # =============================================================================
-# Stage 2: Production
+# Stage 2: Production (Debian-based for Oracle Instant Client compatibility)
 # =============================================================================
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -36,9 +36,29 @@ ENV MCP_PORT=3001
 
 WORKDIR /app
 
+# Install Oracle Instant Client Basic-lite + dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libaio1 \
+      wget \
+      unzip \
+      ca-certificates && \
+    mkdir -p /opt/oracle && \
+    wget -q https://download.oracle.com/otn_software/linux/instantclient/2340000/instantclient-basiclite-linux.x64-23.4.0.24.05.zip \
+      -O /tmp/instantclient.zip && \
+    unzip /tmp/instantclient.zip -d /opt/oracle && \
+    ln -s /opt/oracle/instantclient_* /opt/oracle/instantclient && \
+    rm /tmp/instantclient.zip && \
+    apt-get purge -y wget unzip && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV LD_LIBRARY_PATH=/opt/oracle/instantclient
+ENV ORACLE_CLIENT_PATH=/opt/oracle/instantclient
+
 # Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nl2sql -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs nl2sql
 
 # Copy production dependencies
 COPY --from=builder /app/node_modules ./node_modules
@@ -61,7 +81,7 @@ EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+    CMD node -e "const http = require('http'); const req = http.get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }); req.on('error', () => process.exit(1)); req.setTimeout(5000, () => process.exit(1));"
 
 # Default: Start MCP server in SSE mode
 # Override with CMD ["node", "dist/index.js", "interactive"] for REPL mode

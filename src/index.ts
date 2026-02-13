@@ -9,6 +9,7 @@ import {
   testConnection,
   closeConnection,
 } from './database/connection.js';
+import { initializeOracleDriver } from './database/oracle-driver-setup.js';
 import { queryCommand } from './cli/commands/query.js';
 import { schemaCommand } from './cli/commands/schema.js';
 import { startInteractiveMode } from './cli/modes/interactive.js';
@@ -239,6 +240,15 @@ async function runWithConnection(
   const connectionInfo = isProduction
     ? `${config.database.type} database`
     : `${config.database.type}://${maskSensitiveInfo(config.database.host)}:${config.database.port}/${config.database.database}`;
+
+  // Oracle: Thick 모드 초기화 (한글 캐릭터셋 변환용)
+  if (config.database.type === 'oracle' && config.database.oracleDataCharset) {
+    await initializeOracleDriver({
+      clientMode: config.database.oracleClientMode,
+      oracleClientPath: config.database.oracleClientPath,
+      oracleDataCharset: config.database.oracleDataCharset,
+    });
+  }
 
   const spinner = ora(`${connectionInfo}에 연결 중...`).start();
 
