@@ -83,11 +83,11 @@ export async function dbConnect(
 
   try {
     // Oracle: Thick 모드 초기화 (한글 캐릭터셋 변환용)
-    if (input.type === 'oracle' && input.oracleDataCharset) {
-      await initializeOracleDriver({
-        oracleDataCharset: input.oracleDataCharset,
-      });
-    }
+    // if (input.type === 'oracle' && input.oracleDataCharset) {
+    //   await initializeOracleDriver({
+    //     oracleDataCharset: input.oracleDataCharset,
+    //   });
+    // }
 
     // ConnectionManager에 등록 (Knex 풀 생성)
     const { connectionId, isNew } = connManager.register({

@@ -136,7 +136,7 @@ queries:
       SELECT
         t.OWNER as schema_name,
         t.TABLE_NAME as table_name,
-        c.COMMENTS as table_comment
+        UTL_RAW.CAST_TO_RAW(c.COMMENTS) as table_comment
       FROM ALL_TABLES t
       LEFT JOIN ALL_TAB_COMMENTS c
         ON t.OWNER = c.OWNER
@@ -268,7 +268,7 @@ queries:
           DECODE(c.NULLABLE, 'Y', 'YES', 'NO') as is_nullable,
           c.DATA_DEFAULT as column_default,
           DECODE(pk.COLUMN_NAME, NULL, 0, 1) as is_primary_key,
-          cc.COMMENTS as column_comment
+          UTL_RAW.CAST_TO_RAW(cc.COMMENTS) as column_comment
       FROM ALL_TAB_COLUMNS c -- 권한이 없다면 ALL_TAB_COLUMNS 유지
       LEFT JOIN ALL_COL_COMMENTS cc
           ON  c.OWNER = cc.OWNER

@@ -38,6 +38,7 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.1",
+    "@devx/mcp-sdk": "latest",
     "@modelcontextprotocol/sdk": "^1.25.3",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
@@ -52,9 +53,7 @@
     "pg": "^8.18.0",
     "zod": "^4.3.6"
   },
-  "metadata": {
-    "@devx/mcp-sdk": "latest"
-  },
+  "metadata": {},
   "optionalDependencies": {
     "oracledb": "^6.7.1"
   },

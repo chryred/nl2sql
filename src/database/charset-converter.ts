@@ -20,10 +20,6 @@
 
 import iconv from 'iconv-lite';
 import { logger } from '../logger/index.js';
-import { isThickModeActive } from './oracle-driver-setup.js';
-
-/** Thin 모드 경고 중복 출력 방지 */
-let thinModeWarned = false;
 
 /**
  * 문자열이 순수 ASCII(0x00-0x7F)인지 확인합니다.
@@ -56,27 +52,23 @@ export function isPureAscii(str: string): boolean {
  * @returns 올바르게 디코딩된 UTF-8 문자열
  */
 export function convertOracleCharset(
-  value: string,
+  value: string | Buffer<ArrayBuffer>,
   charset: string
-): string {
-  if (!value || isPureAscii(value)) return value;
-
-  if (isThickModeActive()) {
-    // Thick 모드: Latin1 바이트 패스스루로 원본 바이트 복원 가능
-    const rawBytes = Buffer.from(value, 'latin1');
-    return iconv.decode(rawBytes, charset);
+): string | Buffer<ArrayBuffer> {
+  if(charset) {
+    if(Buffer.isBuffer(value)) {
+      return iconv.decode(value, charset);
+    } else {
+      const rawBytes = Buffer.from(value, 'latin1');
+      return iconv.decode(rawBytes, charset);
+    }
   }
+  
+  if (!value || !Buffer.isBuffer(value) && isPureAscii(value)) return value;
 
-  // Thin 모드: 바이트 이미 손상, 복구 불가
-  if (!thinModeWarned) {
-    logger.warn(
-      'Oracle Thin mode: charset conversion cannot recover original bytes. ' +
-        'Install Oracle Instant Client and set ORACLE_CLIENT_MODE=auto for proper Korean/CJK support.'
-    );
-    thinModeWarned = true;
-  }
   return value;
 }
+
 
 /**
  * 중첩된 값의 모든 문자열에 캐릭터셋 변환을 재귀 적용합니다.
@@ -93,11 +85,15 @@ export function convertDeep(value: unknown, charset: string): unknown {
     return isPureAscii(value) ? value : convertOracleCharset(value, charset);
   }
 
+  if (Buffer.isBuffer(value) && value.buffer instanceof ArrayBuffer) {
+    return convertOracleCharset(value as Buffer<ArrayBuffer>, charset);
+  }
+
   if (Array.isArray(value)) {
     return value.map((item) => convertDeep(item, charset));
   }
 
-  if (Buffer.isBuffer(value) || value instanceof Date) return value;
+  if (value instanceof Date) return value;
 
   if (typeof value === 'object') {
     const converted: Record<string, unknown> = {};
@@ -130,6 +126,7 @@ export function createPostProcessResponse(
   }
 
   logger.info(`Oracle charset conversion enabled: ${charset}`);
+
   return (result: unknown) => convertDeep(result, charset);
 }
 

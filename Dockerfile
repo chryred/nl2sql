@@ -37,24 +37,24 @@ ENV MCP_PORT=3001
 WORKDIR /app
 
 # Install Oracle Instant Client Basic-lite + dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      libaio1 \
-      wget \
-      unzip \
-      ca-certificates && \
-    mkdir -p /opt/oracle && \
-    wget -q https://download.oracle.com/otn_software/linux/instantclient/2340000/instantclient-basiclite-linux.x64-23.4.0.24.05.zip \
-      -O /tmp/instantclient.zip && \
-    unzip /tmp/instantclient.zip -d /opt/oracle && \
-    ln -s /opt/oracle/instantclient_* /opt/oracle/instantclient && \
-    rm /tmp/instantclient.zip && \
-    apt-get purge -y wget unzip && \
-    apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+# RUN apt-get update && \
+#     apt-get install -y --no-install-recommends \
+#       libaio1 \
+#       wget \
+#       unzip \
+#       ca-certificates && \
+#     mkdir -p /opt/oracle && \
+#     wget -q https://download.oracle.com/otn_software/linux/instantclient/2340000/instantclient-basiclite-linux.x64-23.4.0.24.05.zip \
+#       -O /tmp/instantclient.zip && \
+#     unzip /tmp/instantclient.zip -d /opt/oracle && \
+#     ln -s /opt/oracle/instantclient_* /opt/oracle/instantclient && \
+#     rm /tmp/instantclient.zip && \
+#     apt-get purge -y wget unzip && \
+#     apt-get autoremove -y && \
+#     rm -rf /var/lib/apt/lists/*
 
-ENV LD_LIBRARY_PATH=/opt/oracle/instantclient
-ENV ORACLE_CLIENT_PATH=/opt/oracle/instantclient
+# ENV LD_LIBRARY_PATH=/opt/oracle/instantclient
+# ENV ORACLE_CLIENT_PATH=/opt/oracle/instantclient
 
 # Create non-root user for security
 RUN groupadd -g 1001 nodejs && \

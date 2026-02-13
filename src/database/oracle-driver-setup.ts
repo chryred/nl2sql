@@ -71,7 +71,8 @@ export async function initializeOracleDriver(
   }
 
   // NLS_LANG 설정 (반드시 oracledb import/초기화 전에)
-  process.env.NLS_LANG = '.WE8ISO8859P1';
+  //process.env.NLS_LANG = '.WE8ISO8859P1';
+  process.env.NLS_LANG = 'AMERICAN_AMERICA.US7ASCII';
 
   try {
     // @ts-expect-error -- oracledb is an optional dependency without bundled types

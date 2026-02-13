@@ -48,13 +48,13 @@ async function main(): Promise<void> {
     validateConfig(config);
 
     // Oracle: Thick 모드 초기화 (한글 캐릭터셋 변환용)
-    if (config.database.type === 'oracle' && config.database.oracleDataCharset) {
-      await initializeOracleDriver({
-        clientMode: config.database.oracleClientMode,
-        oracleClientPath: config.database.oracleClientPath,
-        oracleDataCharset: config.database.oracleDataCharset,
-      });
-    }
+    // if (config.database.type === 'oracle' && config.database.oracleDataCharset) {
+    //   await initializeOracleDriver({
+    //     clientMode: config.database.oracleClientMode,
+    //     oracleClientPath: config.database.oracleClientPath,
+    //     oracleDataCharset: config.database.oracleDataCharset,
+    //   });
+    // }
 
     connManager.registerDefault({
       type: config.database.type,
