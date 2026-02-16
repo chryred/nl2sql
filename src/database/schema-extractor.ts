@@ -60,6 +60,33 @@ export async function extractSchema(
 }
 
 /**
+ * 테이블명 + 코멘트만 요약 (1st Pass용)
+ *
+ * @description
+ * Two-Pass 테이블 선택의 1st Pass에서 사용됩니다.
+ * 전체 스키마에서 테이블명과 코멘트만 추출하여 경량 요약을 생성합니다.
+ * LLM이 관련 테이블을 빠르게 선별할 수 있도록 최소한의 정보만 포함합니다.
+ *
+ * @param schema - 전체 스키마 정보
+ * @returns 테이블 요약 문자열 (줄바꿈으로 구분)
+ *
+ * @example
+ * const summary = formatSchemaSummary(schema);
+ * // Output:
+ * // public.customers -- 고객 마스터
+ * // public.orders -- 주문
+ */
+export function formatSchemaSummary(schema: SchemaInfo): string {
+  const lines: string[] = [];
+  for (const table of schema.tables) {
+    const prefix = table.schemaName ? `${table.schemaName}.` : '';
+    const comment = table.comment ? ` -- ${table.comment}` : '';
+    lines.push(`${prefix}${table.name}${comment}`);
+  }
+  return lines.join('\n');
+}
+
+/**
  * 스키마 정보를 AI 프롬프트용 텍스트로 포맷팅합니다.
  *
  * @description
