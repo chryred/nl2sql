@@ -40,6 +40,11 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 
 ## Version History
 
+### v1.4.0
+- Two-Pass 테이블 선별 기능 추가 (30+ 테이블 환경에서 토큰 ~82% 절감)
+- 1st Pass: 테이블명 + 코멘트 + 용어집으로 관련 테이블 선별
+- 2nd Pass: 선별된 테이블의 상세 스키마로 SQL 생성
+
 ### v1.3.0
 - FK 관계 자동 추론 MCP 도구 추가 (`infer_relationships`)
 - 네이밍 컨벤션 기반 관계 추론 (MEDIUM 신뢰도, 자동 활성화)

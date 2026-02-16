@@ -11,6 +11,7 @@
 - **CLI**: 간단한 명령어로 SQL 생성 및 실행
 - **Interactive REPL**: 대화형 모드로 연속 쿼리 실행
 - **Metadata Auto-Setup**: 메타데이터 테이블 자동 생성 (CLI/MCP)
+- **Two-Pass Table Selection**: 대규모 스키마(30+ 테이블) 환경에서 1st Pass로 관련 테이블 선별 후 SQL 생성, 토큰 ~82% 절감
 - **MCP Server**: Model Context Protocol 지원 (stdio/SSE), 다중 연결 관리
 - **Docker**: 컨테이너 배포 지원
 
@@ -488,8 +489,12 @@ nl2sql_ts/
 │       ├── config.test.ts
 │       ├── errors.test.ts
 │       ├── input-validator.test.ts
+│       ├── nl2sql-engine.test.ts
+│       ├── prompt-builder.test.ts
+│       ├── relationship-inference.test.ts
 │       ├── response-parser.test.ts
-│       └── result-formatter.test.ts
+│       ├── result-formatter.test.ts
+│       └── schema-extractor.test.ts
 ├── .env.example
 ├── .eslintrc.json
 ├── .prettierrc.json
