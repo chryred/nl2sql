@@ -20,10 +20,15 @@
 import type { Knex } from 'knex';
 import type { Config } from '../config/index.js';
 import { createAIClient, type AIProvider } from '../ai/client-factory.js';
-import { buildPrompt } from '../ai/prompt-builder.js';
+import {
+  buildPrompt,
+  buildTableSelectionPrompt,
+  parseSelectedTables,
+} from '../ai/prompt-builder.js';
 import { parseSQL, validateSQL } from '../ai/response-parser.js';
 import {
   extractSchema,
+  formatSchemaSummary,
   type SchemaInfo,
   type TableInfo,
 } from '../database/schema-extractor.js';
@@ -33,6 +38,9 @@ import {
 } from '../database/metadata/index.js';
 import type { MetadataCache } from '../database/metadata/types.js';
 import { logger } from '../logger/index.js';
+
+/** 2-Pass 테이블 선별 임계값. 이 수 이하이면 기존 single-pass 유지 */
+const TABLE_COUNT_THRESHOLD = 30;
 
 /**
  * NL2SQL 처리 결과 인터페이스
@@ -224,15 +232,37 @@ export class NL2SQLEngine {
   async generateSQL(naturalLanguageQuery: string): Promise<string> {
     const schema = await this.getSchema();
     const metadata = await this.getMetadata();
-    
+
+    let finalSchema: SchemaInfo = schema;
+    let finalMetadata: MetadataCache | null = metadata ?? null;
+
+    // 2-Pass: 테이블이 임계값 초과 시 1st Pass로 관련 테이블 선별
+    if (schema.tables.length > TABLE_COUNT_THRESHOLD) {
+      const tableSummary = formatSchemaSummary(schema);
+      const selectionPrompt = buildTableSelectionPrompt(
+        tableSummary,
+        metadata?.glossaryTerms ?? [],
+        metadata?.glossaryAliases ?? [],
+        naturalLanguageQuery
+      );
+
+      const selectionResponse = await this.aiClient.generateSQL(selectionPrompt);
+      const selectedTables = parseSelectedTables(selectionResponse);
+
+      if (selectedTables.length > 0) {
+        finalSchema = filterSchemaByTables(schema, selectedTables);
+        finalMetadata = filterMetadataByTables(metadata ?? null, selectedTables);
+      }
+      // selectedTables가 비어있으면 전체 스키마로 fallback
+    }
+
     const prompt = buildPrompt({
-      tables: schema,
+      tables: finalSchema,
       naturalLanguageQuery,
       dbType: this.config.database.type,
-      metadata,
+      metadata: finalMetadata,
     });
 
-    console.log(prompt);
     const response = await this.aiClient.generateSQL(prompt);
     const sql = parseSQL(response);
 
