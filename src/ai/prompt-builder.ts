@@ -25,7 +25,7 @@ import {
   type TableInfo,
 } from '../database/schema-extractor.js';
 import type { DatabaseType } from '../database/types.js';
-import type { MetadataCache } from '../database/metadata/types.js';
+import type { MetadataCache, GlossaryTerm, GlossaryAlias } from '../database/metadata/types.js';
 
 /**
  * 프롬프트 빌더 옵션 인터페이스
@@ -305,4 +305,77 @@ export function buildPrompt(options: PromptOptions): string {
   );
 
   return sections.join('\n\n');
+}
+
+/**
+ * 1st Pass: 테이블 선별용 프롬프트 생성
+ * @param tableSummary - 테이블명+코멘트 요약 문자열
+ * @param glossaryTerms - 용어집
+ * @param glossaryAliases - 용어 별칭
+ * @param naturalLanguageQuery - 사용자 질문
+ * @returns 테이블 선별 프롬프트
+ */
+export function buildTableSelectionPrompt(
+  tableSummary: string,
+  glossaryTerms: GlossaryTerm[],
+  glossaryAliases: GlossaryAlias[],
+  naturalLanguageQuery: string
+): string {
+  const sections: string[] = [];
+
+  sections.push(`You are a database expert. Given the following list of available tables, select ONLY the tables needed to answer the user's question.`);
+
+  sections.push(`Available Tables:\n${tableSummary}`);
+
+  // 용어집
+  if (glossaryTerms.length > 0) {
+    const termLines = glossaryTerms.map((t) => {
+      const aliases = glossaryAliases
+        .filter((a) => a.termCode === t.termCode)
+        .map((a) => a.alias);
+      const aliasPart = aliases.length > 0 ? ` (also: ${aliases.join(', ')})` : '';
+      const tableHint = t.applyToTables?.length ? ` [tables: ${t.applyToTables.join(', ')}]` : '';
+      return `  - "${t.term}"${aliasPart} → ${t.sqlCondition}${tableHint}`;
+    });
+    sections.push(`Business Terms:\n${termLines.join('\n')}`);
+  }
+
+  sections.push(`User question: ${naturalLanguageQuery}`);
+
+  sections.push(
+    `Return ONLY a JSON array of table names (without schema prefix) that are needed to answer the question. Include tables needed for JOINs. Example: ["customers", "orders"]`
+  );
+
+  return sections.join('\n\n');
+}
+
+/**
+ * 1st Pass LLM 응답에서 테이블명 배열 파싱
+ * @param response - LLM 응답 문자열
+ * @returns 테이블명 배열
+ */
+export function parseSelectedTables(response: string): string[] {
+  let text = response.trim();
+
+  // Remove markdown code blocks
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (codeBlockMatch) {
+    text = codeBlockMatch[1].trim();
+  }
+
+  // Try to extract JSON array from response
+  const jsonMatch = text.match(/\[[\s\S]*?\]/);
+  if (!jsonMatch) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) {
+      return parsed;
+    }
+    return [];
+  } catch {
+    return [];
+  }
 }
