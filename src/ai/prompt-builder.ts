@@ -370,7 +370,7 @@ export function parseSelectedTables(response: string): string[] {
   }
 
   try {
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed: unknown = JSON.parse(jsonMatch[0]);
     if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) {
       return parsed;
     }
