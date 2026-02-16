@@ -354,3 +354,51 @@ export class NL2SQLEngine {
     this.cachedSchema = null;
   }
 }
+
+/**
+ * 선별된 테이블만 스키마에서 필터링
+ * @param schema - 전체 스키마
+ * @param tableNames - 선별된 테이블명 배열
+ * @returns 필터링된 스키마
+ */
+export function filterSchemaByTables(
+  schema: SchemaInfo,
+  tableNames: string[]
+): SchemaInfo {
+  const nameSet = new Set(tableNames.map((n) => n.toLowerCase()));
+  return {
+    tables: schema.tables.filter((t) => nameSet.has(t.name.toLowerCase())),
+    recentQueries: schema.recentQueries,
+  };
+}
+
+/**
+ * 선별된 테이블 관련 메타데이터만 필터링
+ * @param metadata - 전체 메타데이터 캐시
+ * @param tableNames - 선별된 테이블명 배열
+ * @returns 필터링된 메타데이터
+ */
+export function filterMetadataByTables(
+  metadata: MetadataCache | null,
+  tableNames: string[]
+): MetadataCache | null {
+  if (!metadata) return null;
+
+  const nameSet = new Set(tableNames.map((n) => n.toLowerCase()));
+  const isRelevantTable = (t: string) => nameSet.has(t.toLowerCase());
+
+  return {
+    ...metadata,
+    relationships: metadata.relationships.filter(
+      (r) => isRelevantTable(r.sourceTable) || isRelevantTable(r.targetTable)
+    ),
+    glossaryTerms: metadata.glossaryTerms.filter(
+      (t) => !t.applyToTables?.length || t.applyToTables.some(isRelevantTable)
+    ),
+    queryPatterns: metadata.queryPatterns.filter(
+      (p) =>
+        !p.applicableTables?.length ||
+        p.applicableTables.some(isRelevantTable)
+    ),
+  };
+}
