@@ -37,6 +37,11 @@ import {
   schemaSetup,
   schemaSetupInputSchema,
 } from './tools/schema-setup.js';
+import {
+  inferRelationshipsTool,
+  inferRelationshipsInputSchema,
+  formatInferenceResult,
+} from './tools/infer-relationships.js';
 
 /**
  * MCP 서버 인스턴스를 생성하고 도구들을 등록합니다.
@@ -253,6 +258,43 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
           {
             type: 'text' as const,
             text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // infer_relationships 도구 등록
+  server.registerTool(
+    'infer_relationships',
+    {
+      description:
+        'Infer FK relationships from naming conventions and column name matching. ' +
+        'Use mode=preview to see candidates, mode=apply to insert into table_relationships. ' +
+        'naming_convention type produces MEDIUM confidence (auto-active), ' +
+        'column_match type produces LOW confidence (manual review needed).',
+      inputSchema: inferRelationshipsInputSchema,
+    },
+    async (args) => {
+      const input = inferRelationshipsInputSchema.parse(args);
+      const result = await inferRelationshipsTool(input, connManager);
+
+      const text =
+        result.result
+          ? formatInferenceResult(result.result) +
+            '\n\n' +
+            JSON.stringify(
+              { success: result.success, message: result.message },
+              null,
+              2
+            )
+          : JSON.stringify(result, null, 2);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text,
           },
         ],
       };

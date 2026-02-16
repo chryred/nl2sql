@@ -319,6 +319,59 @@ queries:
       matchType: match_type
       isRequired: is_required
 
+  # ==========================================================================
+  # 추론용: 사용자 테이블 컬럼 조회
+  # ==========================================================================
+  inferenceColumns:
+    sql: |
+      SELECT c.TABLE_SCHEMA AS table_schema, c.TABLE_NAME AS table_name,
+             c.COLUMN_NAME AS column_name, c.DATA_TYPE AS data_type
+      FROM information_schema.COLUMNS c
+      JOIN information_schema.TABLES t
+        ON c.TABLE_SCHEMA = t.TABLE_SCHEMA AND c.TABLE_NAME = t.TABLE_NAME
+      WHERE t.TABLE_TYPE = 'BASE TABLE'
+        {{SCHEMA_FILTER}}
+      ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION
+    mapping:
+      tableSchema: table_schema
+      tableName: table_name
+      columnName: column_name
+      dataType: data_type
+    systemSchemas: [mysql, information_schema, performance_schema, sys, nl2sql]
+    schemaFilterColumn: c.TABLE_SCHEMA
+
+  # ==========================================================================
+  # 추론용: PK/UK 제약조건 컬럼 조회
+  # ==========================================================================
+  inferenceConstraints:
+    sql: |
+      SELECT s.TABLE_SCHEMA AS table_schema, s.TABLE_NAME AS table_name,
+             s.COLUMN_NAME AS column_name,
+             CASE WHEN s.INDEX_NAME = 'PRIMARY' THEN 'PRIMARY KEY' ELSE 'UNIQUE' END AS constraint_type
+      FROM information_schema.STATISTICS s
+      WHERE s.NON_UNIQUE = 0
+        {{SCHEMA_FILTER}}
+    mapping:
+      tableSchema: table_schema
+      tableName: table_name
+      columnName: column_name
+      constraintType: constraint_type
+    systemSchemas: [mysql, information_schema, performance_schema, sys, nl2sql]
+    schemaFilterColumn: s.TABLE_SCHEMA
+
+  # ==========================================================================
+  # 추론용: 관계 UPSERT (INSERT IGNORE)
+  # ==========================================================================
+  inferenceUpsert:
+    sql: |
+      INSERT IGNORE INTO table_relationships (
+        source_schema, source_table, source_column,
+        target_schema, target_table, target_column,
+        relationship_type, confidence_level, join_hint,
+        description, is_active, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, 'MANY_TO_ONE', ?, 'LEFT', ?, ?, ?)
+    mapping: {}
+
 # ============================================================================
 # DDL: 메타데이터 테이블 자동 생성 (기본 스키마)
 # ============================================================================

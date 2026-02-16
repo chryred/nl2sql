@@ -57,3 +57,8 @@ describe('moduleName', () => {
   });
 });
 ```
+
+## Coding Conventions 
+```typescript
+1. sql문은 별도 yaml파일로 지정한다.(각 DBMS별 "src/database/schemas/*.yaml" 경로 파일 참조)
+```

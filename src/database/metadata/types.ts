@@ -319,6 +319,14 @@ export interface MetadataQueryDefinition {
 }
 
 /**
+ * 추론 쿼리 정의 (시스템 스키마 필터링 포함)
+ */
+export interface InferenceQueryDefinition extends MetadataQueryDefinition {
+  systemSchemas?: string[];
+  schemaFilterColumn?: string;
+}
+
+/**
  * DDL 테이블 정의
  */
 export interface DdlTableDefinition {
@@ -353,6 +361,9 @@ export interface MetadataQueryConfig {
     patternParameters: MetadataQueryDefinition;
     patternKeywords: MetadataQueryDefinition;
     codeValuesTemplate?: MetadataQueryDefinition;
+    inferenceColumns?: InferenceQueryDefinition;
+    inferenceConstraints?: InferenceQueryDefinition;
+    inferenceUpsert?: MetadataQueryDefinition;
   };
   ddl?: DdlConfig;
 }

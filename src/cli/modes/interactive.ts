@@ -19,7 +19,13 @@ import {
   formatResults,
   type OutputFormat,
 } from '../formatters/result-formatter.js';
-import { getMetadataCacheStats } from '../../database/metadata/index.js';
+import {
+  getMetadataCacheStats,
+  inferRelationships,
+  applyInferredRelationships,
+  getMetadataCache,
+} from '../../database/metadata/index.js';
+import { formatInferenceResult } from '../../mcp/tools/infer-relationships.js';
 import { logger } from '../../logger/index.js';
 
 /**
@@ -48,6 +54,7 @@ const COMMANDS = {
   EXECUTE: ['.execute', '.exec', '.e'] as readonly string[],
   CACHE: ['.cache'] as readonly string[],
   REFRESH: ['.refresh'] as readonly string[],
+  INFER: ['.infer', '.ir'] as readonly string[],
 } as const;
 
 /**
@@ -179,6 +186,8 @@ export class InteractiveSession {
       this.showCacheStats();
     } else if (COMMANDS.REFRESH.includes(cmd)) {
       await this.refreshCache();
+    } else if (COMMANDS.INFER.includes(cmd)) {
+      await this.handleInfer(args);
     } else {
       console.log(chalk.yellow(`알 수 없는 명령어: ${cmd}`));
       console.log(
@@ -379,6 +388,57 @@ export class InteractiveSession {
   }
 
   /**
+   * FK 관계 추론을 실행합니다.
+   *
+   * @param args - [mode] preview 또는 apply
+   */
+  private async handleInfer(args: string[]): Promise<void> {
+    const mode = args[0] === 'apply' ? 'apply' : 'preview';
+    const spinner = ora('FK 관계 추론 중...').start();
+
+    try {
+      const cache = getMetadataCache();
+      const namingConventions = cache?.namingConventions ?? [];
+      const existingRelationships = cache?.relationships ?? [];
+
+      const candidates = await inferRelationships(
+        this.knex,
+        this.config.database.type,
+        namingConventions,
+        existingRelationships
+      );
+      spinner.succeed(`${candidates.length}개 관계 후보 발견`);
+
+      if (candidates.length === 0) {
+        console.log(chalk.gray('추론할 새로운 관계가 없습니다.'));
+        return;
+      }
+
+      console.log(formatInferenceResult({ candidates }));
+
+      if (mode === 'apply') {
+        const applySpinner = ora('관계 적용 중...').start();
+        const { applied, skipped } = await applyInferredRelationships(
+          this.knex,
+          this.config.database.type,
+          candidates,
+          this.config.database.oracleDataCharset
+        );
+        applySpinner.succeed(`적용: ${applied}건, 스킵: ${skipped}건`);
+      } else {
+        console.log(
+          chalk.yellow('.infer apply 로 적용할 수 있습니다.')
+        );
+      }
+    } catch (error) {
+      spinner.fail('FK 관계 추론 실패');
+      console.log(
+        chalk.red(error instanceof Error ? error.message : String(error))
+      );
+    }
+  }
+
+  /**
    * 환영 메시지를 출력합니다.
    */
   private printWelcome(): void {
@@ -426,6 +486,9 @@ export class InteractiveSession {
       chalk.cyan('  .cache') + '           메타데이터 캐시 상태 표시'
     );
     console.log(chalk.cyan('  .refresh') + '         캐시 새로고침');
+    console.log(
+      chalk.cyan('  .infer [apply]') + '   FK 관계 추론 (기본: preview)'
+    );
     console.log('');
     console.log(chalk.gray('자연어 쿼리를 입력하면 SQL로 변환됩니다.'));
     console.log(chalk.gray('예: "최근 가입한 사용자 10명 보여줘"'));

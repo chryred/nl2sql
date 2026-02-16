@@ -129,6 +129,28 @@ npm start -- setup
 npm start -- setup -y
 ```
 
+### Infer Relationships
+
+네이밍 패턴 및 동일 컬럼명 기반으로 FK 관계를 자동 추론합니다.
+
+```bash
+# 미리보기 (기본)
+npm start -- infer-relationships
+npm start -- ir
+
+# 관계 적용
+npm start -- ir --mode apply
+
+# 특정 스키마만
+npm start -- ir --schema public
+
+# 네이밍 컨벤션만 사용
+npm start -- ir --types naming_convention
+
+# JSON 출력
+npm start -- ir --format json
+```
+
 ### Interactive REPL Mode
 
 대화형 모드로 연속적인 자연어 쿼리를 실행합니다.
@@ -150,6 +172,7 @@ REPL 내부 명령어:
 - `.format [type]` - 출력 형식 변경 (table/json/csv)
 - `.execute` - 자동 실행 모드 토글
 - `.cache` - 메타데이터 캐시 상태
+- `.infer [apply]` - FK 관계 추론 (기본: preview)
 - `.exit` - 종료
 
 ## Commands
@@ -159,6 +182,7 @@ REPL 내부 명령어:
 | `query <text>` | `q` | Generate SQL from natural language |
 | `schema` | `s` | Display database schema |
 | `setup` | - | Create metadata tables automatically |
+| `infer-relationships` | `ir` | Infer FK relationships automatically |
 | `interactive` | `i` | Start interactive REPL mode |
 
 ### Options
@@ -287,6 +311,7 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 | `cache_status` | 메타데이터 캐시 상태 조회 |
 | `cache_refresh` | 메타데이터 캐시 새로고침 (Docker 재기동 불필요) |
 | `schema_setup` | 메타데이터 테이블 자동 생성 (사용자 확인 필수) |
+| `infer_relationships` | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론 (preview/apply) |
 
 ### stdio 모드 (Claude Desktop 등)
 
@@ -400,7 +425,8 @@ nl2sql_ts/
 │   ├── cli/
 │   │   ├── commands/
 │   │   │   ├── query.ts            # Query command
-│   │   │   └── schema.ts           # Schema command
+│   │   │   ├── schema.ts           # Schema command
+│   │   │   └── infer-relationships.ts  # FK inference command
 │   │   ├── formatters/
 │   │   │   └── result-formatter.ts # Output formatters (table/json/csv)
 │   │   └── modes/

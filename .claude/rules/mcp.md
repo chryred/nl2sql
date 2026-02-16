@@ -17,6 +17,7 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `nl2sql_query` | 자연어 → SQL 변환 및 실행 |
 | `cache_status` | 메타데이터 캐시 상태 조회 |
 | `cache_refresh` | 메타데이터 캐시 새로고침 (Docker 재기동 불필요) |
+| `infer_relationships` | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론 |
 
 ## Transport Modes
 
@@ -38,6 +39,12 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.3.0
+- FK 관계 자동 추론 MCP 도구 추가 (`infer_relationships`)
+- 네이밍 컨벤션 기반 관계 추론 (MEDIUM 신뢰도, 자동 활성화)
+- 동일 컬럼명 기반 관계 추론 (LOW 신뢰도, 수동 검토)
+- SQL 배치 스크립트에 4~5단계 추가 (3개 DBMS)
 
 ### v1.2.0
 - 메타데이터 캐시 관리 MCP 도구 추가 (`cache_status`, `cache_refresh`)

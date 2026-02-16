@@ -318,6 +318,79 @@ queries:
       matchType: match_type
       isRequired: is_required
 
+  # ==========================================================================
+  # 추론용: 사용자 테이블 컬럼 조회
+  # ==========================================================================
+  inferenceColumns:
+    sql: |
+      SELECT c.owner AS table_schema, c.table_name, c.column_name, c.data_type
+      FROM all_tab_columns c
+      JOIN all_tables t
+        ON c.owner = t.owner AND c.table_name = t.table_name
+      WHERE 1=1
+        {{SCHEMA_FILTER}}
+      ORDER BY c.owner, c.table_name, c.column_id
+    mapping:
+      tableSchema: table_schema
+      tableName: table_name
+      columnName: column_name
+      dataType: data_type
+    systemSchemas: [SYS, SYSTEM, DBSNMP, OUTLN, MDSYS, CTXSYS, XDB, WMSYS, APEX_PUBLIC_USER, APEX_040000, FLOWS_FILES, NL2SQL]
+    schemaFilterColumn: c.owner
+
+  # ==========================================================================
+  # 추론용: PK/UK 제약조건 컬럼 조회
+  # ==========================================================================
+  inferenceConstraints:
+    sql: |
+      SELECT c.owner AS table_schema, c.table_name, cc.column_name,
+             CASE WHEN c.constraint_type = 'P' THEN 'PRIMARY KEY' ELSE 'UNIQUE' END AS constraint_type
+      FROM all_constraints c
+      JOIN all_cons_columns cc
+        ON c.owner = cc.owner AND c.constraint_name = cc.constraint_name
+      WHERE c.constraint_type IN ('P', 'U')
+        {{SCHEMA_FILTER}}
+    mapping:
+      tableSchema: table_schema
+      tableName: table_name
+      columnName: column_name
+      constraintType: constraint_type
+    systemSchemas: [SYS, SYSTEM, DBSNMP, OUTLN, MDSYS, CTXSYS, XDB, WMSYS, APEX_PUBLIC_USER, APEX_040000, FLOWS_FILES, NL2SQL]
+    schemaFilterColumn: c.owner
+
+  # ==========================================================================
+  # 추론용: 관계 UPSERT (MERGE INTO)
+  # Oracle 한글 description은 {{DESCRIPTION_BIND}} 플레이스홀더로 처리
+  # ==========================================================================
+  inferenceUpsert:
+    sql: |
+      MERGE INTO table_relationships tr
+      USING (
+        SELECT ? AS source_schema, ? AS source_table, ? AS source_column,
+               ? AS target_schema, ? AS target_table, ? AS target_column
+        FROM DUAL
+      ) src
+      ON (
+        tr.source_schema = src.source_schema
+        AND tr.source_table = src.source_table
+        AND tr.source_column = src.source_column
+        AND tr.target_schema = src.target_schema
+        AND tr.target_table = src.target_table
+        AND tr.target_column = src.target_column
+      )
+      WHEN NOT MATCHED THEN
+        INSERT (
+          source_schema, source_table, source_column,
+          target_schema, target_table, target_column,
+          relationship_type, confidence_level, join_hint,
+          description, is_active, created_by
+        ) VALUES (
+          src.source_schema, src.source_table, src.source_column,
+          src.target_schema, src.target_table, src.target_column,
+          'MANY_TO_ONE', ?, 'LEFT', {{DESCRIPTION_BIND}}, ?, ?
+        )
+    mapping: {}
+
 # ============================================================================
 # DDL: 메타데이터 테이블 자동 생성 (현재 사용자 스키마)
 # ============================================================================

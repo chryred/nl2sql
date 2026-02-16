@@ -347,6 +347,62 @@ queries:
       matchType: match_type
       isRequired: is_required
 
+  # ==========================================================================
+  # 추론용: 사용자 테이블 컬럼 조회
+  # ==========================================================================
+  inferenceColumns:
+    sql: |
+      SELECT c.table_schema, c.table_name, c.column_name, c.data_type
+      FROM information_schema.columns c
+      JOIN information_schema.tables t
+        ON c.table_schema = t.table_schema AND c.table_name = t.table_name
+      WHERE t.table_type = 'BASE TABLE'
+        {{SCHEMA_FILTER}}
+      ORDER BY c.table_schema, c.table_name, c.ordinal_position
+    mapping:
+      tableSchema: table_schema
+      tableName: table_name
+      columnName: column_name
+      dataType: data_type
+    systemSchemas: [pg_catalog, information_schema, nl2sql]
+    schemaFilterColumn: c.table_schema
+
+  # ==========================================================================
+  # 추론용: PK/UK 제약조건 컬럼 조회
+  # ==========================================================================
+  inferenceConstraints:
+    sql: |
+      SELECT tc.table_schema, tc.table_name, kcu.column_name, tc.constraint_type
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+      WHERE tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE')
+        {{SCHEMA_FILTER}}
+    mapping:
+      tableSchema: table_schema
+      tableName: table_name
+      columnName: column_name
+      constraintType: constraint_type
+    systemSchemas: [pg_catalog, information_schema, nl2sql]
+    schemaFilterColumn: tc.table_schema
+
+  # ==========================================================================
+  # 추론용: 관계 UPSERT (ON CONFLICT DO NOTHING)
+  # ==========================================================================
+  inferenceUpsert:
+    sql: |
+      INSERT INTO nl2sql.table_relationships (
+        source_schema, source_table, source_column,
+        target_schema, target_table, target_column,
+        relationship_type, confidence_level, join_hint,
+        description, is_active, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, 'MANY_TO_ONE', ?, 'LEFT', ?, ?, ?)
+      ON CONFLICT (source_schema, source_table, source_column,
+                   target_schema, target_table, target_column)
+      DO NOTHING
+    mapping: {}
+
 # ============================================================================
 # DDL: 메타데이터 테이블 자동 생성 (기본 스키마)
 # ============================================================================

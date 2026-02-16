@@ -27,6 +27,7 @@ export type {
   PatternKeyword,
   MetadataCache,
   MetadataQueryDefinition,
+  InferenceQueryDefinition,
   MetadataQueryConfig,
   DdlTableDefinition,
   DdlConfig,
@@ -54,3 +55,17 @@ export {
 // 스키마 자동 생성 내보내기
 export { setupMetadataSchema } from './schema-setup.js';
 export type { SchemaSetupResult, TableSetupResult } from './schema-setup.js';
+
+// 관계 추론 엔진 내보내기
+export {
+  inferRelationships,
+  applyInferredRelationships,
+  buildSchemaFilter,
+  pluralize,
+  singularize,
+} from './relationship-inference.js';
+export type {
+  InferredRelationship,
+  InferenceOptions,
+  InferenceResult,
+} from './relationship-inference.js';

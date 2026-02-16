@@ -5,7 +5,7 @@
 --
 -- 목적:
 --   운영 DB의 시스템 카탈로그에서 메타데이터를 자동 추출하여 nl2sql 스키마에 적재합니다.
---   FK 제약조건, 코드성 테이블, 컬럼-코드 매핑을 자동으로 탐지합니다.
+--   FK 제약조건, 코드성 테이블, 컬럼-코드 매핑, 네이밍 패턴 기반 관계를 자동으로 탐지합니다.
 --
 -- 특징:
 --   - 멱등성 보장 (MERGE INTO ... USING)
@@ -442,23 +442,347 @@ END;
 
 /*
 -- ============================================================================
+-- 4단계: 네이밍 컨벤션 기반 관계 추론 → table_relationships
+-- ============================================================================
+-- naming_conventions 테이블의 패턴을 활용하여 FK 없는 관계를 추론합니다.
+-- - confidence_level: MEDIUM
+-- - created_by: 'naming_convention'
+-- - is_active: 1 (패턴 기반은 비교적 신뢰도가 높으므로 자동 활성화)
+-- - 복수형 변환 (+s, +es, y→ies) 지원
+-- ============================================================================
+*/
+
+DECLARE
+    v_inserted NUMBER := 0;
+    v_skipped  NUMBER := 0;
+    v_total    NUMBER := 0;
+
+    v_candidate_table  VARCHAR2(255);
+    v_candidate_column VARCHAR2(255);
+    v_actual_table     VARCHAR2(128);
+    v_match_group      VARCHAR2(255);
+    v_dummy            NUMBER;
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('4단계: 네이밍 컨벤션 기반 관계 추론');
+    DBMS_OUTPUT.PUT_LINE('========================================');
+
+    FOR conv IN (
+        SELECT * FROM naming_conventions
+        WHERE is_active = 1
+        ORDER BY priority ASC
+    ) LOOP
+        FOR col IN (
+            SELECT c.owner AS table_schema, c.table_name, c.column_name
+            FROM all_tab_columns c
+            JOIN all_tables t
+                ON c.owner = t.owner AND c.table_name = t.table_name
+            WHERE c.owner NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'OUTLN', 'MDSYS',
+                                   'CTXSYS', 'XDB', 'WMSYS', 'APEX_PUBLIC_USER',
+                                   'APEX_040000', 'FLOWS_FILES', 'NL2SQL')
+              AND REGEXP_LIKE(c.column_name, conv.column_pattern, 'i')
+        ) LOOP
+            v_total := v_total + 1;
+
+            /* 캡처 그룹 추출 ($1) */
+            v_match_group := REGEXP_REPLACE(col.column_name, conv.column_pattern, '\1', 1, 1, 'i');
+
+            /* 타겟 테이블/컬럼 패턴 치환 */
+            v_candidate_table := REPLACE(conv.target_table_pattern, '$1', v_match_group);
+            v_candidate_column := REPLACE(conv.target_column_pattern, '$1', v_match_group);
+
+            /* 접두사/접미사 제거 */
+            IF conv.table_prefix_strip IS NOT NULL THEN
+                v_candidate_table := REGEXP_REPLACE(v_candidate_table,
+                    '^' || conv.table_prefix_strip, '', 1, 1, 'i');
+            END IF;
+            IF conv.table_suffix_strip IS NOT NULL THEN
+                v_candidate_table := REGEXP_REPLACE(v_candidate_table,
+                    conv.table_suffix_strip || '$', '', 1, 1, 'i');
+            END IF;
+
+            /* 테이블 존재 확인 (원래 형태) */
+            v_actual_table := NULL;
+
+            BEGIN
+                SELECT t.table_name INTO v_actual_table
+                FROM all_tables t
+                WHERE t.owner = col.table_schema
+                  AND UPPER(t.table_name) = UPPER(v_candidate_table)
+                  AND ROWNUM = 1;
+            EXCEPTION WHEN NO_DATA_FOUND THEN v_actual_table := NULL;
+            END;
+
+            /* 복수형 시도 (apply_pluralization = 1) */
+            IF v_actual_table IS NULL AND conv.apply_pluralization = 1 THEN
+                /* +s */
+                BEGIN
+                    SELECT t.table_name INTO v_actual_table
+                    FROM all_tables t
+                    WHERE t.owner = col.table_schema
+                      AND UPPER(t.table_name) = UPPER(v_candidate_table || 'S')
+                      AND ROWNUM = 1;
+                EXCEPTION WHEN NO_DATA_FOUND THEN v_actual_table := NULL;
+                END;
+
+                /* +es */
+                IF v_actual_table IS NULL THEN
+                    BEGIN
+                        SELECT t.table_name INTO v_actual_table
+                        FROM all_tables t
+                        WHERE t.owner = col.table_schema
+                          AND UPPER(t.table_name) = UPPER(v_candidate_table || 'ES')
+                          AND ROWNUM = 1;
+                    EXCEPTION WHEN NO_DATA_FOUND THEN v_actual_table := NULL;
+                    END;
+                END IF;
+
+                /* y → ies */
+                IF v_actual_table IS NULL AND REGEXP_LIKE(v_candidate_table, 'Y$', 'i') THEN
+                    BEGIN
+                        SELECT t.table_name INTO v_actual_table
+                        FROM all_tables t
+                        WHERE t.owner = col.table_schema
+                          AND UPPER(t.table_name) = UPPER(
+                              REGEXP_REPLACE(v_candidate_table, 'Y$', 'IES', 1, 1, 'i'))
+                          AND ROWNUM = 1;
+                    EXCEPTION WHEN NO_DATA_FOUND THEN v_actual_table := NULL;
+                    END;
+                END IF;
+            END IF;
+
+            IF v_actual_table IS NULL THEN
+                v_skipped := v_skipped + 1;
+                CONTINUE;
+            END IF;
+
+            /* 타겟 컬럼 존재 확인 */
+            BEGIN
+                SELECT 1 INTO v_dummy
+                FROM all_tab_columns c2
+                WHERE c2.owner = col.table_schema
+                  AND c2.table_name = v_actual_table
+                  AND UPPER(c2.column_name) = UPPER(v_candidate_column)
+                  AND ROWNUM = 1;
+            EXCEPTION WHEN NO_DATA_FOUND THEN
+                v_skipped := v_skipped + 1;
+                CONTINUE;
+            END;
+
+            /* 자기 참조 제외 */
+            IF UPPER(col.table_name) = UPPER(v_actual_table)
+               AND UPPER(col.column_name) = UPPER(v_candidate_column) THEN
+                v_skipped := v_skipped + 1;
+                CONTINUE;
+            END IF;
+
+            /* MERGE (기존 관계가 있으면 건드리지 않음) */
+            MERGE INTO table_relationships tr
+            USING (
+                SELECT
+                    col.table_schema AS source_schema,
+                    col.table_name   AS source_table,
+                    col.column_name  AS source_column,
+                    col.table_schema AS target_schema,
+                    v_actual_table   AS target_table,
+                    v_candidate_column AS target_column
+                FROM DUAL
+            ) src
+            ON (
+                tr.source_schema = src.source_schema
+                AND tr.source_table  = src.source_table
+                AND tr.source_column = src.source_column
+                AND tr.target_schema = src.target_schema
+                AND tr.target_table  = src.target_table
+                AND tr.target_column = src.target_column
+            )
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    source_schema, source_table, source_column,
+                    target_schema, target_table, target_column,
+                    relationship_type, confidence_level, join_hint,
+                    description, is_active, created_by
+                ) VALUES (
+                    src.source_schema, src.source_table, src.source_column,
+                    src.target_schema, src.target_table, src.target_column,
+                    'MANY_TO_ONE', 'MEDIUM', 'LEFT',
+                    '네이밍 컨벤션 ''' || conv.convention_name || ''' 기반 추론',
+                    1, 'naming_convention'
+                );
+
+            IF SQL%ROWCOUNT > 0 THEN
+                v_inserted := v_inserted + 1;
+            ELSE
+                v_skipped := v_skipped + 1;
+            END IF;
+        END LOOP;
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('4단계 완료: 총 ' || v_total || '건 검토 (신규: ' || v_inserted || ', 건너뜀: ' || v_skipped || ')');
+    COMMIT;
+END;
+/
+
+/*
+-- ============================================================================
+-- 5단계: 동일 컬럼명 기반 관계 추론 → table_relationships
+-- ============================================================================
+-- 서로 다른 테이블에 동일한 컬럼명이 존재하고,
+-- 한쪽에 PK/UK가 있는 경우 관계를 추론합니다.
+-- - confidence_level: LOW
+-- - created_by: 'column_match'
+-- - is_active: 0 (수동 검토 필요)
+-- ============================================================================
+*/
+
+DECLARE
+    v_inserted NUMBER := 0;
+    v_skipped  NUMBER := 0;
+    v_total    NUMBER := 0;
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('========================================');
+    DBMS_OUTPUT.PUT_LINE('5단계: 동일 컬럼명 기반 관계 추론');
+    DBMS_OUTPUT.PUT_LINE('========================================');
+
+    FOR rec IN (
+        SELECT
+            fk_col.owner        AS source_schema,
+            fk_col.table_name   AS source_table,
+            fk_col.column_name  AS source_column,
+            pk_col.owner        AS target_schema,
+            pk_col.table_name   AS target_table,
+            pk_col.column_name  AS target_column
+        FROM all_tab_columns fk_col
+        JOIN all_tab_columns pk_col
+            ON UPPER(fk_col.column_name) = UPPER(pk_col.column_name)
+            AND UPPER(fk_col.data_type) = UPPER(pk_col.data_type)
+            /* 다른 테이블이어야 함 */
+            AND NOT (UPPER(fk_col.owner) = UPPER(pk_col.owner)
+                     AND UPPER(fk_col.table_name) = UPPER(pk_col.table_name))
+        JOIN all_tables ft
+            ON fk_col.owner = ft.owner AND fk_col.table_name = ft.table_name
+        JOIN all_tables pt
+            ON pk_col.owner = pt.owner AND pk_col.table_name = pt.table_name
+        WHERE
+            /* 시스템 스키마 제외 */
+            fk_col.owner NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'OUTLN', 'MDSYS',
+                                  'CTXSYS', 'XDB', 'WMSYS', 'APEX_PUBLIC_USER',
+                                  'APEX_040000', 'FLOWS_FILES', 'NL2SQL')
+            AND pk_col.owner NOT IN ('SYS', 'SYSTEM', 'DBSNMP', 'OUTLN', 'MDSYS',
+                                      'CTXSYS', 'XDB', 'WMSYS', 'APEX_PUBLIC_USER',
+                                      'APEX_040000', 'FLOWS_FILES', 'NL2SQL')
+            /* PK 측: PK 또는 UNIQUE 제약 존재 */
+            AND EXISTS (
+                SELECT 1
+                FROM all_cons_columns cc
+                JOIN all_constraints c
+                    ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+                WHERE c.constraint_type IN ('P', 'U')
+                  AND cc.owner = pk_col.owner
+                  AND cc.table_name = pk_col.table_name
+                  AND cc.column_name = pk_col.column_name
+            )
+            /* FK 측: PK/UNIQUE 제약 없음 */
+            AND NOT EXISTS (
+                SELECT 1
+                FROM all_cons_columns cc
+                JOIN all_constraints c
+                    ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+                WHERE c.constraint_type IN ('P', 'U')
+                  AND cc.owner = fk_col.owner
+                  AND cc.table_name = fk_col.table_name
+                  AND cc.column_name = fk_col.column_name
+            )
+            /* 이미 등록된 관계가 아님 */
+            AND NOT EXISTS (
+                SELECT 1 FROM table_relationships tr
+                WHERE tr.source_schema = fk_col.owner
+                  AND tr.source_table  = fk_col.table_name
+                  AND tr.source_column = fk_col.column_name
+                  AND tr.target_schema = pk_col.owner
+                  AND tr.target_table  = pk_col.table_name
+                  AND tr.target_column = pk_col.column_name
+            )
+    ) LOOP
+        v_total := v_total + 1;
+
+        MERGE INTO table_relationships tr
+        USING (
+            SELECT
+                rec.source_schema AS source_schema,
+                rec.source_table  AS source_table,
+                rec.source_column AS source_column,
+                rec.target_schema AS target_schema,
+                rec.target_table  AS target_table,
+                rec.target_column AS target_column
+            FROM DUAL
+        ) src
+        ON (
+            tr.source_schema = src.source_schema
+            AND tr.source_table  = src.source_table
+            AND tr.source_column = src.source_column
+            AND tr.target_schema = src.target_schema
+            AND tr.target_table  = src.target_table
+            AND tr.target_column = src.target_column
+        )
+        WHEN NOT MATCHED THEN
+            INSERT (
+                source_schema, source_table, source_column,
+                target_schema, target_table, target_column,
+                relationship_type, confidence_level, join_hint,
+                description, is_active, created_by
+            ) VALUES (
+                src.source_schema, src.source_table, src.source_column,
+                src.target_schema, src.target_table, src.target_column,
+                'MANY_TO_ONE', 'LOW', 'LEFT',
+                '동일 컬럼명 기반 추론: ' || rec.source_table || '.' || rec.source_column
+                    || ' → ' || rec.target_table || '.' || rec.target_column,
+                0, 'column_match'
+            );
+
+        IF SQL%ROWCOUNT > 0 THEN
+            v_inserted := v_inserted + 1;
+        ELSE
+            v_skipped := v_skipped + 1;
+        END IF;
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('5단계 완료: 총 ' || v_total || '건 검토 (신규: ' || v_inserted || ', 건너뜀: ' || v_skipped || ')');
+    DBMS_OUTPUT.PUT_LINE('  → SELECT * FROM table_relationships WHERE created_by = ''column_match'' AND is_active = 0');
+    DBMS_OUTPUT.PUT_LINE('    으로 검토 후 UPDATE ... SET is_active = 1 로 활성화하세요.');
+    COMMIT;
+END;
+/
+
+/*
+-- ============================================================================
 -- 결과 요약
 -- ============================================================================
 */
 
 DECLARE
-    v_rel_count  NUMBER;
-    v_code_count NUMBER;
-    v_map_count  NUMBER;
+    v_rel_fk       NUMBER;
+    v_rel_naming   NUMBER;
+    v_rel_colmatch NUMBER;
+    v_code_count   NUMBER;
+    v_map_count    NUMBER;
 BEGIN
     DBMS_OUTPUT.PUT_LINE('');
     DBMS_OUTPUT.PUT_LINE('========================================');
     DBMS_OUTPUT.PUT_LINE('자동 추출 결과 요약');
     DBMS_OUTPUT.PUT_LINE('========================================');
 
-    SELECT COUNT(*) INTO v_rel_count
+    SELECT COUNT(*) INTO v_rel_fk
     FROM table_relationships
     WHERE created_by = 'auto_import';
+
+    SELECT COUNT(*) INTO v_rel_naming
+    FROM table_relationships
+    WHERE created_by = 'naming_convention';
+
+    SELECT COUNT(*) INTO v_rel_colmatch
+    FROM table_relationships
+    WHERE created_by = 'column_match';
 
     SELECT COUNT(*) INTO v_code_count
     FROM code_tables
@@ -468,14 +792,18 @@ BEGIN
     FROM column_code_mapping
     WHERE description LIKE 'FK→코드테이블%';
 
-    DBMS_OUTPUT.PUT_LINE('  table_relationships (auto_import): ' || v_rel_count || '건');
-    DBMS_OUTPUT.PUT_LINE('  code_tables (후보, 비활성):         ' || v_code_count || '건');
-    DBMS_OUTPUT.PUT_LINE('  column_code_mapping (후보, 비활성): ' || v_map_count || '건');
+    DBMS_OUTPUT.PUT_LINE('  table_relationships (FK, HIGH):             ' || v_rel_fk || '건');
+    DBMS_OUTPUT.PUT_LINE('  table_relationships (naming, MEDIUM, 활성): ' || v_rel_naming || '건');
+    DBMS_OUTPUT.PUT_LINE('  table_relationships (colmatch, LOW, 비활성): ' || v_rel_colmatch || '건');
+    DBMS_OUTPUT.PUT_LINE('  code_tables (후보, 비활성):                  ' || v_code_count || '건');
+    DBMS_OUTPUT.PUT_LINE('  column_code_mapping (후보, 비활성):          ' || v_map_count || '건');
     DBMS_OUTPUT.PUT_LINE('');
     DBMS_OUTPUT.PUT_LINE('다음 단계:');
-    DBMS_OUTPUT.PUT_LINE('  1. SELECT * FROM code_tables WHERE is_active = 0;');
+    DBMS_OUTPUT.PUT_LINE('  1. SELECT * FROM table_relationships WHERE created_by = ''column_match'' AND is_active = 0;');
+    DBMS_OUTPUT.PUT_LINE('     → 동일 컬럼명 추론 관계 검토 후 UPDATE ... SET is_active = 1');
+    DBMS_OUTPUT.PUT_LINE('  2. SELECT * FROM code_tables WHERE is_active = 0;');
     DBMS_OUTPUT.PUT_LINE('     → 코드테이블 후보 검토 후 UPDATE ... SET is_active = 1');
-    DBMS_OUTPUT.PUT_LINE('  2. SELECT * FROM column_code_mapping WHERE is_active = 0;');
+    DBMS_OUTPUT.PUT_LINE('  3. SELECT * FROM column_code_mapping WHERE is_active = 0;');
     DBMS_OUTPUT.PUT_LINE('     → group_code 설정 후 UPDATE ... SET is_active = 1');
     DBMS_OUTPUT.PUT_LINE('========================================');
 END;

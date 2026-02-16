@@ -11,6 +11,7 @@ import {
 } from './database/connection.js';
 import { queryCommand } from './cli/commands/query.js';
 import { schemaCommand } from './cli/commands/schema.js';
+import { inferRelationshipsCommand } from './cli/commands/infer-relationships.js';
 import { startInteractiveMode } from './cli/modes/interactive.js';
 import {
   initializeMetadataCache,
@@ -141,6 +142,32 @@ program
       }
     });
   });
+
+program
+  .command('infer-relationships')
+  .alias('ir')
+  .description('FK 관계 자동 추론')
+  .option('-m, --mode <mode>', 'preview 또는 apply', 'preview')
+  .option('-t, --types <types>', 'naming_convention,column_match')
+  .option('-s, --schema <schema>', '특정 스키마 필터')
+  .option('-f, --format <format>', '출력 형식 (table, json)', 'table')
+  .action(
+    async (options: {
+      mode?: string;
+      types?: string;
+      schema?: string;
+      format?: string;
+    }) => {
+      await runWithConnection(async (knex, config) => {
+        await inferRelationshipsCommand(knex, config, {
+          mode: (options.mode as 'preview' | 'apply') ?? 'preview',
+          types: options.types,
+          schema: options.schema,
+          format: (options.format as 'table' | 'json') ?? 'table',
+        });
+      });
+    }
+  );
 
 program
   .command('interactive')

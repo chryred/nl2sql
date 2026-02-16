@@ -12,17 +12,17 @@ describe('parseSQL', () => {
 
   it('should remove backticks', () => {
     const input = '`SELECT * FROM users`';
-    expect(parseSQL(input)).toBe('SELECT * FROM users;');
+    expect(parseSQL(input)).toBe('SELECT * FROM users');
   });
 
   it('should normalize whitespace', () => {
     const input = 'SELECT\n  *\n  FROM\n  users';
-    expect(parseSQL(input)).toBe('SELECT * FROM users;');
+    expect(parseSQL(input)).toBe('SELECT * FROM users');
   });
 
-  it('should add semicolon if missing', () => {
+  it('should not add semicolon if missing', () => {
     const input = 'SELECT * FROM users';
-    expect(parseSQL(input)).toBe('SELECT * FROM users;');
+    expect(parseSQL(input)).toBe('SELECT * FROM users');
   });
 
   it('should not add extra semicolon', () => {

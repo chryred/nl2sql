@@ -4,7 +4,7 @@
 --
 -- 목적:
 --   운영 DB의 시스템 카탈로그에서 메타데이터를 자동 추출하여 nl2sql 스키마에 적재합니다.
---   FK 제약조건, 코드성 테이블, 컬럼-코드 매핑을 자동으로 탐지합니다.
+--   FK 제약조건, 코드성 테이블, 컬럼-코드 매핑, 네이밍 패턴 기반 관계를 자동으로 탐지합니다.
 --
 -- 특징:
 --   - 멱등성 보장 (ON CONFLICT ... DO UPDATE)
@@ -413,12 +413,303 @@ END $$;
 
 
 -- ============================================================================
+-- 4단계: 네이밍 컨벤션 기반 관계 추론 → table_relationships
+-- ============================================================================
+-- naming_conventions 테이블의 패턴을 활용하여 FK 없는 관계를 추론합니다.
+-- - confidence_level: MEDIUM (네이밍 패턴 기반이므로)
+-- - created_by: 'naming_convention'
+-- - is_active: TRUE (패턴 기반은 비교적 신뢰도가 높으므로 자동 활성화)
+-- - 복수형 변환 (+s, +es, y→ies) 지원
+-- ============================================================================
+
+DO $$
+DECLARE
+    v_inserted INT := 0;
+    v_skipped  INT := 0;
+    v_total    INT := 0;
+    conv RECORD;
+    col  RECORD;
+    v_candidate_table  VARCHAR(255);
+    v_candidate_column VARCHAR(255);
+    v_actual_table     VARCHAR(128);
+    v_match            TEXT[];
+BEGIN
+    RAISE NOTICE '========================================';
+    RAISE NOTICE '4단계: 네이밍 컨벤션 기반 관계 추론';
+    RAISE NOTICE '========================================';
+
+    -- 활성화된 네이밍 컨벤션을 우선순위 순으로 처리
+    FOR conv IN
+        SELECT * FROM nl2sql.naming_conventions
+        WHERE is_active = TRUE
+        ORDER BY priority ASC
+    LOOP
+        -- 사용자 테이블의 모든 컬럼을 순회
+        FOR col IN
+            SELECT c.table_schema, c.table_name, c.column_name
+            FROM information_schema.columns c
+            JOIN information_schema.tables t
+                ON c.table_schema = t.table_schema AND c.table_name = t.table_name
+            WHERE t.table_type = 'BASE TABLE'
+              AND c.table_schema NOT IN ('pg_catalog', 'information_schema', 'nl2sql')
+              -- 스키마 필터 적용
+              AND (conv.apply_to_schemas IS NULL
+                   OR c.table_schema = ANY(conv.apply_to_schemas))
+              -- 테이블 제외 필터
+              AND (conv.exclude_tables IS NULL
+                   OR c.table_name != ALL(conv.exclude_tables))
+              -- 패턴 매칭
+              AND c.column_name ~ conv.column_pattern
+        LOOP
+            v_total := v_total + 1;
+
+            -- 정규식 캡처 그룹 추출
+            v_match := regexp_matches(col.column_name, conv.column_pattern, 'i');
+
+            -- 타겟 테이블/컬럼 패턴 치환 ($1, $2, ...)
+            v_candidate_table := conv.target_table_pattern;
+            v_candidate_column := conv.target_column_pattern;
+
+            IF array_length(v_match, 1) >= 1 THEN
+                v_candidate_table := replace(v_candidate_table, '$1', v_match[1]);
+                v_candidate_column := replace(v_candidate_column, '$1', v_match[1]);
+            END IF;
+            IF array_length(v_match, 1) >= 2 THEN
+                v_candidate_table := replace(v_candidate_table, '$2', v_match[2]);
+                v_candidate_column := replace(v_candidate_column, '$2', v_match[2]);
+            END IF;
+
+            -- 접두사/접미사 제거
+            IF conv.table_prefix_strip IS NOT NULL THEN
+                v_candidate_table := regexp_replace(v_candidate_table, '^' || conv.table_prefix_strip, '', 'i');
+            END IF;
+            IF conv.table_suffix_strip IS NOT NULL THEN
+                v_candidate_table := regexp_replace(v_candidate_table, conv.table_suffix_strip || '$', '', 'i');
+            END IF;
+
+            -- 테이블 존재 확인 (원래 형태 → 복수형 변환)
+            v_actual_table := NULL;
+
+            -- 원래 형태
+            SELECT t.table_name INTO v_actual_table
+            FROM information_schema.tables t
+            WHERE t.table_schema = col.table_schema
+              AND LOWER(t.table_name) = LOWER(v_candidate_table)
+              AND t.table_type = 'BASE TABLE'
+            LIMIT 1;
+
+            -- 복수형 시도 (apply_pluralization = TRUE)
+            IF v_actual_table IS NULL AND conv.apply_pluralization THEN
+                -- +s
+                SELECT t.table_name INTO v_actual_table
+                FROM information_schema.tables t
+                WHERE t.table_schema = col.table_schema
+                  AND LOWER(t.table_name) = LOWER(v_candidate_table || 's')
+                  AND t.table_type = 'BASE TABLE'
+                LIMIT 1;
+
+                -- +es
+                IF v_actual_table IS NULL THEN
+                    SELECT t.table_name INTO v_actual_table
+                    FROM information_schema.tables t
+                    WHERE t.table_schema = col.table_schema
+                      AND LOWER(t.table_name) = LOWER(v_candidate_table || 'es')
+                      AND t.table_type = 'BASE TABLE'
+                    LIMIT 1;
+                END IF;
+
+                -- y → ies
+                IF v_actual_table IS NULL AND v_candidate_table ~ 'y$' THEN
+                    SELECT t.table_name INTO v_actual_table
+                    FROM information_schema.tables t
+                    WHERE t.table_schema = col.table_schema
+                      AND LOWER(t.table_name) = LOWER(regexp_replace(v_candidate_table, 'y$', 'ies', 'i'))
+                      AND t.table_type = 'BASE TABLE'
+                    LIMIT 1;
+                END IF;
+            END IF;
+
+            IF v_actual_table IS NULL THEN
+                v_skipped := v_skipped + 1;
+                CONTINUE;
+            END IF;
+
+            -- 타겟 컬럼 존재 확인
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns c2
+                WHERE c2.table_schema = col.table_schema
+                  AND c2.table_name = v_actual_table
+                  AND LOWER(c2.column_name) = LOWER(v_candidate_column)
+            ) THEN
+                v_skipped := v_skipped + 1;
+                CONTINUE;
+            END IF;
+
+            -- 자기 참조 제외 (같은 테이블, 같은 컬럼)
+            IF LOWER(col.table_name) = LOWER(v_actual_table)
+               AND LOWER(col.column_name) = LOWER(v_candidate_column) THEN
+                v_skipped := v_skipped + 1;
+                CONTINUE;
+            END IF;
+
+            -- UPSERT (기존 관계가 있으면 건드리지 않음)
+            INSERT INTO nl2sql.table_relationships (
+                source_schema, source_table, source_column,
+                target_schema, target_table, target_column,
+                relationship_type, confidence_level, join_hint,
+                description, is_active, created_by
+            ) VALUES (
+                col.table_schema, col.table_name, col.column_name,
+                col.table_schema, v_actual_table, v_candidate_column,
+                'MANY_TO_ONE', 'MEDIUM', 'LEFT',
+                FORMAT('네이밍 컨벤션 ''%s'' 기반 추론', conv.convention_name),
+                TRUE, 'naming_convention'
+            )
+            ON CONFLICT (source_schema, source_table, source_column,
+                         target_schema, target_table, target_column)
+            DO NOTHING;
+
+            IF FOUND THEN
+                v_inserted := v_inserted + 1;
+            ELSE
+                v_skipped := v_skipped + 1;
+            END IF;
+        END LOOP;
+    END LOOP;
+
+    RAISE NOTICE '4단계 완료: 총 %건 검토 (신규: %, 건너뜀: %)',
+        v_total, v_inserted, v_skipped;
+END $$;
+
+
+-- ============================================================================
+-- 5단계: 동일 컬럼명 기반 관계 추론 → table_relationships
+-- ============================================================================
+-- 서로 다른 테이블에 동일한 컬럼명이 존재하고,
+-- 한쪽에 PK/UK가 있는 경우 관계를 추론합니다.
+-- - confidence_level: LOW (동일 컬럼명만으로는 오탐 가능성 있음)
+-- - created_by: 'column_match'
+-- - is_active: FALSE (수동 검토 필요)
+-- - 데이터 타입 호환성 확인 (동일 타입만)
+-- ============================================================================
+
+DO $$
+DECLARE
+    v_inserted INT := 0;
+    v_skipped  INT := 0;
+    v_total    INT := 0;
+    rec RECORD;
+BEGIN
+    RAISE NOTICE '========================================';
+    RAISE NOTICE '5단계: 동일 컬럼명 기반 관계 추론';
+    RAISE NOTICE '========================================';
+
+    FOR rec IN
+        -- FK 측 컬럼 (PK/UK 없는 쪽) → PK/UK 측 컬럼 매칭
+        SELECT
+            fk_col.table_schema AS source_schema,
+            fk_col.table_name   AS source_table,
+            fk_col.column_name  AS source_column,
+            pk_col.table_schema AS target_schema,
+            pk_col.table_name   AS target_table,
+            pk_col.column_name  AS target_column
+        FROM information_schema.columns fk_col
+        JOIN information_schema.columns pk_col
+            ON LOWER(fk_col.column_name) = LOWER(pk_col.column_name)
+            AND LOWER(fk_col.data_type) = LOWER(pk_col.data_type)
+            -- 다른 테이블이어야 함
+            AND NOT (LOWER(fk_col.table_schema) = LOWER(pk_col.table_schema)
+                     AND LOWER(fk_col.table_name) = LOWER(pk_col.table_name))
+        JOIN information_schema.tables ft
+            ON fk_col.table_schema = ft.table_schema
+            AND fk_col.table_name = ft.table_name
+            AND ft.table_type = 'BASE TABLE'
+        JOIN information_schema.tables pt
+            ON pk_col.table_schema = pt.table_schema
+            AND pk_col.table_name = pt.table_name
+            AND pt.table_type = 'BASE TABLE'
+        WHERE
+            -- 시스템 스키마 제외
+            fk_col.table_schema NOT IN ('pg_catalog', 'information_schema', 'nl2sql')
+            AND pk_col.table_schema NOT IN ('pg_catalog', 'information_schema', 'nl2sql')
+            -- PK 측: PK 또는 UNIQUE 제약 존재
+            AND EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE')
+                  AND tc.table_schema = pk_col.table_schema
+                  AND tc.table_name = pk_col.table_name
+                  AND kcu.column_name = pk_col.column_name
+            )
+            -- FK 측: PK/UNIQUE 제약 없음 (FK 역할 컬럼)
+            AND NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE')
+                  AND tc.table_schema = fk_col.table_schema
+                  AND tc.table_name = fk_col.table_name
+                  AND kcu.column_name = fk_col.column_name
+            )
+            -- 이미 등록된 관계가 아님
+            AND NOT EXISTS (
+                SELECT 1 FROM nl2sql.table_relationships tr
+                WHERE tr.source_schema = fk_col.table_schema
+                  AND tr.source_table  = fk_col.table_name
+                  AND tr.source_column = fk_col.column_name
+                  AND tr.target_schema = pk_col.table_schema
+                  AND tr.target_table  = pk_col.table_name
+                  AND tr.target_column = pk_col.column_name
+            )
+    LOOP
+        v_total := v_total + 1;
+
+        INSERT INTO nl2sql.table_relationships (
+            source_schema, source_table, source_column,
+            target_schema, target_table, target_column,
+            relationship_type, confidence_level, join_hint,
+            description, is_active, created_by
+        ) VALUES (
+            rec.source_schema, rec.source_table, rec.source_column,
+            rec.target_schema, rec.target_table, rec.target_column,
+            'MANY_TO_ONE', 'LOW', 'LEFT',
+            FORMAT('동일 컬럼명 기반 추론: %s.%s → %s.%s',
+                rec.source_table, rec.source_column,
+                rec.target_table, rec.target_column),
+            FALSE, 'column_match'
+        )
+        ON CONFLICT (source_schema, source_table, source_column,
+                     target_schema, target_table, target_column)
+        DO NOTHING;
+
+        IF FOUND THEN
+            v_inserted := v_inserted + 1;
+        ELSE
+            v_skipped := v_skipped + 1;
+        END IF;
+    END LOOP;
+
+    RAISE NOTICE '5단계 완료: 총 %건 검토 (신규: %, 건너뜀: %)',
+        v_total, v_inserted, v_skipped;
+    RAISE NOTICE '  → SELECT * FROM nl2sql.table_relationships WHERE created_by = ''column_match'' AND is_active = FALSE';
+    RAISE NOTICE '    로 검토 후 UPDATE ... SET is_active = TRUE 로 활성화하세요.';
+END $$;
+
+
+-- ============================================================================
 -- 결과 요약
 -- ============================================================================
 
 DO $$
 DECLARE
-    v_rel_count   INT;
+    v_rel_fk      INT;
+    v_rel_naming  INT;
+    v_rel_colmatch INT;
     v_code_count  INT;
     v_map_count   INT;
 BEGIN
@@ -427,9 +718,17 @@ BEGIN
     RAISE NOTICE '자동 추출 결과 요약';
     RAISE NOTICE '========================================';
 
-    SELECT COUNT(*) INTO v_rel_count
+    SELECT COUNT(*) INTO v_rel_fk
     FROM nl2sql.table_relationships
     WHERE created_by = 'auto_import';
+
+    SELECT COUNT(*) INTO v_rel_naming
+    FROM nl2sql.table_relationships
+    WHERE created_by = 'naming_convention';
+
+    SELECT COUNT(*) INTO v_rel_colmatch
+    FROM nl2sql.table_relationships
+    WHERE created_by = 'column_match';
 
     SELECT COUNT(*) INTO v_code_count
     FROM nl2sql.code_tables
@@ -439,14 +738,18 @@ BEGIN
     FROM nl2sql.column_code_mapping
     WHERE description LIKE 'FK→코드테이블%';
 
-    RAISE NOTICE '  table_relationships (auto_import): %건', v_rel_count;
-    RAISE NOTICE '  code_tables (후보, 비활성):         %건', v_code_count;
-    RAISE NOTICE '  column_code_mapping (후보, 비활성): %건', v_map_count;
+    RAISE NOTICE '  table_relationships (FK, HIGH):             %건', v_rel_fk;
+    RAISE NOTICE '  table_relationships (naming, MEDIUM, 활성): %건', v_rel_naming;
+    RAISE NOTICE '  table_relationships (colmatch, LOW, 비활성): %건', v_rel_colmatch;
+    RAISE NOTICE '  code_tables (후보, 비활성):                  %건', v_code_count;
+    RAISE NOTICE '  column_code_mapping (후보, 비활성):          %건', v_map_count;
     RAISE NOTICE '';
     RAISE NOTICE '다음 단계:';
-    RAISE NOTICE '  1. SELECT * FROM nl2sql.code_tables WHERE is_active = FALSE;';
+    RAISE NOTICE '  1. SELECT * FROM nl2sql.table_relationships WHERE created_by = ''column_match'' AND is_active = FALSE;';
+    RAISE NOTICE '     → 동일 컬럼명 추론 관계 검토 후 UPDATE ... SET is_active = TRUE';
+    RAISE NOTICE '  2. SELECT * FROM nl2sql.code_tables WHERE is_active = FALSE;';
     RAISE NOTICE '     → 코드테이블 후보 검토 후 UPDATE ... SET is_active = TRUE';
-    RAISE NOTICE '  2. SELECT * FROM nl2sql.column_code_mapping WHERE is_active = FALSE;';
+    RAISE NOTICE '  3. SELECT * FROM nl2sql.column_code_mapping WHERE is_active = FALSE;';
     RAISE NOTICE '     → group_code 설정 후 UPDATE ... SET is_active = TRUE';
     RAISE NOTICE '========================================';
 END $$;
