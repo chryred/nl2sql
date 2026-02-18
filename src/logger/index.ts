@@ -201,8 +201,8 @@ export class Logger {
       ...context,
     };
 
-    const output = level >= LogLevel.ERROR ? console.error : console.log;
-    output(JSON.stringify(logObject));
+    // Always use stderr to avoid polluting stdout (used by MCP stdio transport)
+    console.error(JSON.stringify(logObject));
   }
 
   /**
@@ -244,8 +244,8 @@ export class Logger {
 
     const fullMessage = `${timestamp}${levelStr} ${maskedMessage}${contextStr}${errorStr}`;
 
-    const output = level >= LogLevel.ERROR ? console.error : console.log;
-    output(fullMessage);
+    // Always use stderr to avoid polluting stdout (used by MCP stdio transport)
+    console.error(fullMessage);
   }
 
   /**

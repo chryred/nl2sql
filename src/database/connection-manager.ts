@@ -103,19 +103,27 @@ export class ConnectionManager {
 
   /**
    * 새 연결을 등록하거나 기존 연결을 반환합니다.
+   * 기존 연결이 있으면 생존 여부를 테스트하고, 죽은 경우 재생성합니다.
    *
    * @param params - 연결 파라미터
    * @returns connectionId와 신규 여부
    */
-  register(
+  async register(
     params: ConnectionParams
-  ): { connectionId: string; isNew: boolean } {
+  ): Promise<{ connectionId: string; isNew: boolean }> {
     const connectionId = ConnectionManager.generateId(params);
 
     if (this.entries.has(connectionId)) {
       const entry = this.entries.get(connectionId)!;
-      entry.lastUsedAt = new Date();
-      return { connectionId, isNew: false };
+      const alive = await this.testConnection(entry.knex, params.type);
+      if (alive) {
+        entry.lastUsedAt = new Date();
+        return { connectionId, isNew: false };
+      }
+      // 죽은 연결 제거 후 재생성
+      await entry.knex.destroy().catch(() => {});
+      this.entries.delete(connectionId);
+      logger.warn(`Connection ${connectionId} was unreachable, reconnecting...`);
     }
 
     if (this.entries.size >= this.options.maxConnections) {
@@ -456,6 +464,26 @@ export class ConnectionManager {
       password: params.password,
       database: params.database,
     };
+  }
+
+  /**
+   * 실제 DB 연결이 가능한지 테스트합니다.
+   *
+   * @param knex - Knex 인스턴스
+   * @param dbType - DB 종류
+   * @returns 연결 가능 여부
+   */
+  async testConnection(
+    knex: Knex,
+    dbType: DatabaseType
+  ): Promise<boolean> {
+    try {
+      const sql = dbType === 'oracle' ? 'SELECT 1 FROM DUAL' : 'SELECT 1';
+      await knex.raw(sql);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**

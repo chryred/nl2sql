@@ -246,7 +246,7 @@ export class NL2SQLEngine {
         naturalLanguageQuery
       );
 
-      const selectionResponse = await this.aiClient.generateSQL(selectionPrompt);
+      const selectionResponse = await this.aiClient.selectTables(selectionPrompt);
       const selectedTables = parseSelectedTables(selectionResponse);
 
       if (selectedTables.length > 0) {

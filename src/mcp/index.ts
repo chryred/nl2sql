@@ -57,7 +57,7 @@ async function main(): Promise<void> {
       oracleDataCharset: config.database.oracleDataCharset,
     });
   } catch {
-    console.log(
+    console.error(
       '[MCP] No default connection registered (environment variables not configured or invalid)'
     );
   }
@@ -68,10 +68,10 @@ async function main(): Promise<void> {
     console.log('✅[MCP] Starting NL2SQL MCP server in SSE mode');
     startSSEServer(server, { port, authToken });
   } else {
-    console.log('[MCP] Starting NL2SQL MCP server in stdio mode');
+    console.error('[MCP] Starting NL2SQL MCP server in stdio mode');
     const stdioTransport = new StdioServerTransport();
     await server.connect(stdioTransport);
-    console.log('✅[MCP] Server connected via stdio');
+    console.error('✅[MCP] Server connected via stdio');
   }
 
   // 종료 시 정리

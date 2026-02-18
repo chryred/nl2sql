@@ -80,30 +80,23 @@ export async function dbConnect(
 ): Promise<DbConnectOutput> {
   const port = input.port || getDefaultPort(input.type);
 
-  try {
-    // ConnectionManager에 등록 (Knex 풀 생성)
-    const { connectionId, isNew } = connManager.register({
-      type: input.type,
-      host: input.host,
-      port,
-      user: input.user,
-      password: input.password,
-      database: input.database,
-      serviceName: input.serviceName,
-      oracleDataCharset: input.oracleDataCharset,
-    });
+  // ConnectionManager에 등록 (기존 연결이면 생존 테스트 포함)
+  const { connectionId, isNew } = await connManager.register({
+    type: input.type,
+    host: input.host,
+    port,
+    user: input.user,
+    password: input.password,
+    database: input.database,
+    serviceName: input.serviceName,
+    oracleDataCharset: input.oracleDataCharset,
+  });
 
-    // 연결 테스트
-    const entry = connManager.getEntry(connectionId)!;
-    const testQuery =
-      input.type === 'oracle' ? 'SELECT 1 FROM DUAL' : 'SELECT 1';
-    await entry.knex.raw(testQuery);
-
+  // 기존 연결은 register() 내부에서 이미 검증됨
+  if (!isNew) {
     return {
       success: true,
-      message: isNew
-        ? 'Database connection registered successfully. Use connectionId in subsequent calls.'
-        : 'Reconnected to existing connection.',
+      message: 'Existing connection verified and reused.',
       connectionId,
       details: {
         type: input.type,
@@ -112,8 +105,33 @@ export async function dbConnect(
         database: input.database,
       },
     };
+  }
+
+  // 신규 연결 테스트
+  try {
+    const entry = connManager.getEntry(connectionId)!;
+    const alive = await connManager.testConnection(entry.knex, input.type);
+
+    if(alive) {
+      return {
+        success: true,
+        message:
+          'Database connection registered successfully. Use connectionId in subsequent calls.',
+        connectionId,
+        details: {
+          type: input.type,
+          host: input.host,
+          port,
+          database: input.database,
+        },
+      };
+    } else {
+      throw new Error('Database connection failed!!');
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    await connManager.disconnect(connectionId);
+
     return {
       success: false,
       message: `Connection failed: ${maskSensitiveInfo(message)}`,

@@ -23,11 +23,14 @@
 import { config as dotenvConfig } from 'dotenv';
 import { z } from 'zod';
 import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 
-// 환경 변수 로드
-dotenvConfig();
+// 환경 변수 로드 (실행 위치와 무관하게 프로젝트 루트의 .env 참조)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenvConfig({ path: join(__dirname, '../../.env') });
 
 /**
  * 설정 파일 스키마

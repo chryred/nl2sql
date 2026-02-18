@@ -55,7 +55,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     version: '1.2.0',
   });
 
-  // db_test_connection 도구 등록 (환경변수 기반, 변경 없음)
+  // 1단계: db_test_connection - 환경변수 기반 연결 테스트
   server.registerTool(
     'db_test_connection',
     {
@@ -76,7 +76,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // db_connect 도구 등록 (연결 등록 + connectionId 반환)
+  // 2단계: db_connect - 자격증명으로 DB 접속 (connectionId 발급)
   server.registerTool(
     'db_connect',
     {
@@ -98,28 +98,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // db_disconnect 도구 등록
-  server.registerTool(
-    'db_disconnect',
-    {
-      description: 'Disconnect a registered database connection and release resources.',
-      inputSchema: dbDisconnectInputSchema,
-    },
-    async (args) => {
-      const input = dbDisconnectInputSchema.parse(args);
-      const result = await dbDisconnect(input, connManager);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
-
-  // db_list_connections 도구 등록
+  // 3단계: db_list_connections - 활성 연결 목록 확인
   server.registerTool(
     'db_list_connections',
     {
@@ -139,108 +118,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // nl2sql_schema 도구 등록
-  server.registerTool(
-    'nl2sql_schema',
-    {
-      description:
-        'Get database schema information. Supports json, prompt, and summary formats. Optionally specify connectionId.',
-      inputSchema: nl2sqlSchemaInputSchema,
-    },
-    async (args) => {
-      const input = nl2sqlSchemaInputSchema.parse(args);
-      const result = await nl2sqlSchema(input, connManager);
-
-      // prompt 형식은 텍스트로, 나머지는 JSON으로
-      const text =
-        input.format === 'prompt' && typeof result.data === 'string'
-          ? result.data
-          : JSON.stringify(result, null, 2);
-
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text,
-          },
-        ],
-      };
-    }
-  );
-
-  // nl2sql_query 도구 등록
-  server.registerTool(
-    'nl2sql_query',
-    {
-      description:
-        'Convert natural language to SQL and optionally execute it. Optionally specify connectionId.',
-      inputSchema: nl2sqlQueryInputSchema,
-    },
-    async (args) => {
-      const input = nl2sqlQueryInputSchema.parse(args);
-      const result = await nl2sqlQuery(input, connManager);
-
-      const text =
-        input.format === 'text'
-          ? formatAsText(result)
-          : JSON.stringify(result, null, 2);
-
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text,
-          },
-        ],
-      };
-    }
-  );
-
-  // cache_status 도구 등록
-  server.registerTool(
-    'cache_status',
-    {
-      description:
-        'Get metadata cache status including initialization state and item counts. Optionally specify connectionId.',
-      inputSchema: cacheStatusInputSchema,
-    },
-    (args) => {
-      const input = cacheStatusInputSchema.parse(args);
-      const result = cacheStatus(input, connManager);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
-
-  // cache_refresh 도구 등록
-  server.registerTool(
-    'cache_refresh',
-    {
-      description:
-        'Refresh metadata cache without Docker restart. Optionally specify connectionId.',
-      inputSchema: cacheRefreshInputSchema,
-    },
-    async (args) => {
-      const input = cacheRefreshInputSchema.parse(args);
-      const result = await cacheRefresh(input, connManager);
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
-
-  // schema_setup 도구 등록
+  // 4단계: schema_setup - NL2SQL 메타 스키마 초기 설정 (최초 1회)
   server.registerTool(
     'schema_setup',
     {
@@ -264,7 +142,51 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // infer_relationships 도구 등록
+  // 5단계: cache_status - 메타데이터 캐시 상태 확인
+  server.registerTool(
+    'cache_status',
+    {
+      description:
+        'Get metadata cache status including initialization state and item counts. Optionally specify connectionId.',
+      inputSchema: cacheStatusInputSchema,
+    },
+    (args) => {
+      const input = cacheStatusInputSchema.parse(args);
+      const result = cacheStatus(input, connManager);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // 6단계: cache_refresh - 메타데이터 캐시 새로고침 (Docker 재기동 불필요)
+  server.registerTool(
+    'cache_refresh',
+    {
+      description:
+        'Refresh metadata cache without Docker restart. Optionally specify connectionId.',
+      inputSchema: cacheRefreshInputSchema,
+    },
+    async (args) => {
+      const input = cacheRefreshInputSchema.parse(args);
+      const result = await cacheRefresh(input, connManager);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  // 7단계: infer_relationships - 네이밍 패턴/컬럼명 기반 FK 관계 추론
   server.registerTool(
     'infer_relationships',
     {
@@ -295,6 +217,84 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
           {
             type: 'text' as const,
             text,
+          },
+        ],
+      };
+    }
+  );
+
+  // 8단계: nl2sql_schema - DB 스키마 정보 조회
+  server.registerTool(
+    'nl2sql_schema',
+    {
+      description:
+        'Get database schema information. Supports json, prompt, and summary formats. Optionally specify connectionId.',
+      inputSchema: nl2sqlSchemaInputSchema,
+    },
+    async (args) => {
+      const input = nl2sqlSchemaInputSchema.parse(args);
+      const result = await nl2sqlSchema(input, connManager);
+
+      // prompt 형식은 텍스트로, 나머지는 JSON으로
+      const text =
+        input.format === 'prompt' && typeof result.data === 'string'
+          ? result.data
+          : JSON.stringify(result, null, 2);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text,
+          },
+        ],
+      };
+    }
+  );
+
+  // 9단계: nl2sql_query - 자연어 → SQL 변환 및 실행
+  server.registerTool(
+    'nl2sql_query',
+    {
+      description:
+        'Convert natural language to SQL and optionally execute it. Optionally specify connectionId.',
+      inputSchema: nl2sqlQueryInputSchema,
+    },
+    async (args) => {
+      const input = nl2sqlQueryInputSchema.parse(args);
+      const result = await nl2sqlQuery(input, connManager);
+
+      const text =
+        input.format === 'text'
+          ? formatAsText(result)
+          : JSON.stringify(result, null, 2);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text,
+          },
+        ],
+      };
+    }
+  );
+
+  // 10단계: db_disconnect - 연결 해제 및 리소스 반환
+  server.registerTool(
+    'db_disconnect',
+    {
+      description: 'Disconnect a registered database connection and release resources.',
+      inputSchema: dbDisconnectInputSchema,
+    },
+    async (args) => {
+      const input = dbDisconnectInputSchema.parse(args);
+      const result = await dbDisconnect(input, connManager);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };

@@ -27,7 +27,9 @@ RUN npm prune --production
 # =============================================================================
 # Stage 2: Production (Debian-based for Oracle Instant Client compatibility)
 # =============================================================================
-FROM node:20-slim AS production
+#FROM node:20-slim AS production
+#oracle instace 미사용으로 인해 원복 처리
+FROM node:20-alpine AS production  
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -56,9 +58,9 @@ WORKDIR /app
 # ENV LD_LIBRARY_PATH=/opt/oracle/instantclient
 # ENV ORACLE_CLIENT_PATH=/opt/oracle/instantclient
 
-# Create non-root user for security
-RUN groupadd -g 1001 nodejs && \
-    useradd -r -u 1001 -g nodejs nl2sql
+# Create non-root user for security (Alpine: addgroup/adduser)
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S -u 1001 -G nodejs nl2sql
 
 # Copy production dependencies
 COPY --from=builder /app/node_modules ./node_modules
@@ -67,8 +69,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 
-# Copy source metadata files (YAML queries)
-COPY --from=builder /app/src/database/schemas/metadata ./src/database/schemas/metadata
+# Copy YAML schema files directly from src (copyfiles glob issue in Alpine)
+COPY --from=builder /app/src/database/schemas ./dist/database/schemas
 
 # Change ownership to non-root user
 RUN chown -R nl2sql:nodejs /app

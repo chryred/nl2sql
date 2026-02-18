@@ -42,15 +42,19 @@ curl http://localhost:3001/health
 ```
 
 ## Claude Desktop 설정
-
 `claude_desktop_config.json`에 추가:
+.env내에 MCP_AUTH_TOKEN설정값을 읽어서 Bearer뒤에 설정
 ```json
 {
   "mcpServers": {
-    "nl2sql": {
-      "command": "node",
-      "args": ["dist/mcp/server.js"],
-      "cwd": "/path/to/nl2sql_ts"
+    "nl2sql": { 
+      "command": "/Users/youwonji/.nvm/versions/node/v24.12.0/bin/npx", 
+      "args": [ 
+        "mcp-remote", 
+        "http://localhost:3001/mcp", 
+        "--transport", "http-only", 
+        "--header", "Authorization: Bearer ${MCP_AUTH_TOKEN}$" 
+      ]
     }
   }
 }
