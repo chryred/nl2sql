@@ -323,7 +323,7 @@ export function buildTableSelectionPrompt(
 ): string {
   const sections: string[] = [];
 
-  sections.push(`You are a database expert. Given the following list of available tables, select ONLY the tables needed to answer the user's question.`);
+  // sections.push(`You are a database expert. Given the following list of available tables, select ONLY the tables needed to answer the user's question.`);
 
   sections.push(`Available Tables:\n${tableSummary}`);
 

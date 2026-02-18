@@ -48,7 +48,7 @@ export class DevX implements AIProvider {
       `#역할
       당신은 데이터베이스 스키마 전문가입니다. 
       제공된 테이블 목록과 사용자 쿼리를 분석하여 관련 테이블명의 JSON 배열만 반환하세요. 
-      설명이나 SQL 없이 JSON 배열만 반환하세요. 예시: ["orders", "customers", "order_items"]
+      설명이나 SQL 없이 JSON 배열만 반환하세요. 예시: ["orders", "customers", "order_items"]\n
       `;
     
     const merge_prompt = system_prompt + prompt;
