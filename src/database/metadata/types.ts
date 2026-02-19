@@ -364,6 +364,9 @@ export interface MetadataQueryConfig {
     inferenceColumns?: InferenceQueryDefinition;
     inferenceConstraints?: InferenceQueryDefinition;
     inferenceUpsert?: MetadataQueryDefinition;
+    queryPatternInsert?: MetadataQueryDefinition;
+    queryPatternKeywordInsert?: MetadataQueryDefinition;
+    queryPatternSearch?: MetadataQueryDefinition;
   };
   ddl?: DdlConfig;
 }
