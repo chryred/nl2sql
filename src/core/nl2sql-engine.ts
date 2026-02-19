@@ -243,6 +243,9 @@ export class NL2SQLEngine {
         tableSummary,
         metadata?.glossaryTerms ?? [],
         metadata?.glossaryAliases ?? [],
+        metadata?.relationships ?? [],
+        metadata?.queryPatterns ?? [],
+        metadata?.patternKeywords ?? [],
         naturalLanguageQuery
       );
 
