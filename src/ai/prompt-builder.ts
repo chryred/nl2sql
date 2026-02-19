@@ -25,7 +25,14 @@ import {
   type TableInfo,
 } from '../database/schema-extractor.js';
 import type { DatabaseType } from '../database/types.js';
-import type { MetadataCache, GlossaryTerm, GlossaryAlias } from '../database/metadata/types.js';
+import type {
+  MetadataCache,
+  GlossaryTerm,
+  GlossaryAlias,
+  TableRelationship,
+  QueryPattern,
+  PatternKeyword,
+} from '../database/metadata/types.js';
 
 /**
  * 프롬프트 빌더 옵션 인터페이스
@@ -319,13 +326,25 @@ export function buildTableSelectionPrompt(
   tableSummary: string,
   glossaryTerms: GlossaryTerm[],
   glossaryAliases: GlossaryAlias[],
+  relationships: TableRelationship[],
+  queryPatterns: QueryPattern[],
+  patternKeywords: PatternKeyword[],
   naturalLanguageQuery: string
 ): string {
   const sections: string[] = [];
 
-  // sections.push(`You are a database expert. Given the following list of available tables, select ONLY the tables needed to answer the user's question.`);
-
   sections.push(`Available Tables:\n${tableSummary}`);
+
+  // 테이블 관계 (JOIN 결정용)
+  if (relationships.length > 0) {
+    const relLines = relationships.map(
+      (r) =>
+        `  - ${r.sourceTable}.${r.sourceColumn} → ${r.targetTable}.${r.targetColumn} (${r.relationshipType})`
+    );
+    sections.push(
+      `Table Relationships (use these for JOIN decisions):\n${relLines.join('\n')}`
+    );
+  }
 
   // 용어집
   if (glossaryTerms.length > 0) {
@@ -334,17 +353,51 @@ export function buildTableSelectionPrompt(
         .filter((a) => a.termCode === t.termCode)
         .map((a) => a.alias);
       const aliasPart = aliases.length > 0 ? ` (also: ${aliases.join(', ')})` : '';
-      const tableHint = t.applyToTables?.length ? ` [tables: ${t.applyToTables.join(', ')}]` : '';
+      const tableHint = t.applyToTables?.length
+        ? ` [tables: ${t.applyToTables.join(', ')}]`
+        : '';
       return `  - "${t.term}"${aliasPart} → ${t.sqlCondition}${tableHint}`;
     });
     sections.push(`Business Terms:\n${termLines.join('\n')}`);
   }
 
-  sections.push(`User question: ${naturalLanguageQuery}`);
+  // queryPatterns 테이블 힌트 (applicableTables만, SQL 없음)
+  if (queryPatterns.length > 0) {
+    const hintLines = queryPatterns
+      .filter((p) => p.applicableTables && p.applicableTables.length > 0)
+      .map(
+        (p) =>
+          `  - "${p.patternName}" → related tables: [${p.applicableTables!.join(', ')}]`
+      );
+    if (hintLines.length > 0) {
+      sections.push(`Query Pattern Table Hints:\n${hintLines.join('\n')}`);
+    }
+  }
 
-  // sections.push(
-  //   `Return ONLY a JSON array of table names (without schema prefix) that are needed to answer the question. Include tables needed for JOINs. Example: ["customers", "orders"]`
-  // );
+  // patternKeywords → 패턴 → 테이블 힌트
+  if (patternKeywords.length > 0 && queryPatterns.length > 0) {
+    const kwMap = new Map<string, string[]>();
+    patternKeywords.forEach((kw) => {
+      const existing = kwMap.get(kw.patternCode) ?? [];
+      existing.push(kw.keyword);
+      kwMap.set(kw.patternCode, existing);
+    });
+
+    const kwLines: string[] = [];
+    kwMap.forEach((keywords, patternCode) => {
+      const pattern = queryPatterns.find((p) => p.patternCode === patternCode);
+      if (pattern?.applicableTables?.length) {
+        kwLines.push(
+          `  - Keywords [${keywords.join(', ')}] → "${pattern.patternName}" pattern → tables: [${pattern.applicableTables.join(', ')}]`
+        );
+      }
+    });
+    if (kwLines.length > 0) {
+      sections.push(`Pattern Keywords → Table Hints:\n${kwLines.join('\n')}`);
+    }
+  }
+
+  sections.push(`User question: ${naturalLanguageQuery}`);
 
   return sections.join('\n\n');
 }
