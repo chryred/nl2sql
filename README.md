@@ -313,6 +313,8 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 | `cache_refresh` | 메타데이터 캐시 새로고침 (Docker 재기동 불필요) |
 | `schema_setup` | 메타데이터 테이블 자동 생성 (사용자 확인 필수) |
 | `infer_relationships` | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론 (preview/apply) |
+| `query_pattern_add` | 자주 사용하는 쿼리 패턴 DB 등록 (캐시 자동 갱신) |
+| `query_pattern_search` | 패턴명/설명 키워드로 쿼리 패턴 검색 |
 
 ### stdio 모드 (Claude Desktop 등)
 

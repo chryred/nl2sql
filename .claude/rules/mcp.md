@@ -18,6 +18,8 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `cache_status` | 메타데이터 캐시 상태 조회 |
 | `cache_refresh` | 메타데이터 캐시 새로고침 (Docker 재기동 불필요) |
 | `infer_relationships` | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론 |
+| `query_pattern_add` | 자주 사용하는 쿼리 패턴 등록 (DB 저장 + 캐시 자동 갱신) |
+| `query_pattern_search` | 패턴명/설명 키워드로 쿼리 패턴 검색 및 조회 |
 
 ## Transport Modes
 
@@ -39,6 +41,13 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.5.0
+- 1st Pass 테이블 선별 프롬프트 강화 (TABLE_RELATIONSHIPS, queryPatterns 힌트, patternKeywords 추가)
+- JOIN 필요 테이블 누락 방지: 관계 정보 기반으로 관련 테이블 자동 포함
+- `query_pattern_add` MCP 도구 추가 (8단계): 자주 사용하는 쿼리 패턴 DB 등록 + 캐시 자동 갱신
+- `query_pattern_search` MCP 도구 추가 (9단계): 패턴명/설명 키워드 검색 (ILIKE)
+- MCP 도구 12단계 체계로 확장 (기존 10단계)
 
 ### v1.4.0
 - Two-Pass 테이블 선별 기능 추가 (30+ 테이블 환경에서 토큰 ~82% 절감)
