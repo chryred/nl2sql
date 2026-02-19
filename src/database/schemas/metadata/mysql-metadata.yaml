@@ -372,6 +372,64 @@ queries:
       ) VALUES (?, ?, ?, ?, ?, ?, 'MANY_TO_ONE', ?, 'LEFT', ?, ?, ?)
     mapping: {}
 
+  # ==========================================================================
+  # query_pattern_add: 쿼리 패턴 등록
+  # ==========================================================================
+  queryPatternInsert:
+    sql: |
+      INSERT INTO nl2sql.query_patterns (
+        pattern_code, pattern_name, category,
+        sql_template, sql_template_mysql, sql_template_oracle,
+        applicable_tables, match_score_threshold, priority,
+        description, example_input, is_active, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'mcp_user')
+      ON DUPLICATE KEY UPDATE
+        pattern_name        = VALUES(pattern_name),
+        category            = VALUES(category),
+        sql_template        = VALUES(sql_template),
+        sql_template_mysql  = VALUES(sql_template_mysql),
+        sql_template_oracle = VALUES(sql_template_oracle),
+        applicable_tables   = VALUES(applicable_tables),
+        description         = VALUES(description),
+        example_input       = VALUES(example_input),
+        updated_at          = NOW()
+    mapping: {}
+
+  # ==========================================================================
+  # query_pattern_add: 패턴 키워드 등록 (중복 무시)
+  # ==========================================================================
+  queryPatternKeywordInsert:
+    sql: |
+      INSERT IGNORE INTO nl2sql.pattern_keywords (
+        pattern_code, keyword, locale, weight, match_type, is_required
+      ) VALUES (?, ?, 'ko', 10, 'CONTAINS', 0)
+    mapping: {}
+
+  # ==========================================================================
+  # query_pattern_search: 패턴명/설명 키워드 검색
+  # ==========================================================================
+  queryPatternSearch:
+    sql: |
+      SELECT
+        qp.pattern_code,
+        qp.pattern_name,
+        qp.category,
+        qp.sql_template,
+        qp.description,
+        qp.example_input,
+        qp.applicable_tables,
+        GROUP_CONCAT(pk.keyword ORDER BY pk.keyword SEPARATOR ',') AS keywords
+      FROM nl2sql.query_patterns qp
+      LEFT JOIN nl2sql.pattern_keywords pk
+             ON pk.pattern_code = qp.pattern_code AND pk.is_active = 1
+      WHERE qp.is_active = 1
+        AND (qp.pattern_name LIKE ? OR qp.description LIKE ?)
+      GROUP BY qp.pattern_code, qp.pattern_name, qp.category,
+               qp.sql_template, qp.description, qp.example_input, qp.applicable_tables
+      ORDER BY qp.priority
+      LIMIT ?
+    mapping: {}
+
 # ============================================================================
 # DDL: 메타데이터 테이블 자동 생성 (기본 스키마)
 # ============================================================================
