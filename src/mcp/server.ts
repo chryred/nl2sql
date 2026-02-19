@@ -42,6 +42,12 @@ import {
   inferRelationshipsInputSchema,
   formatInferenceResult,
 } from './tools/infer-relationships.js';
+import {
+  queryPatternAdd,
+  queryPatternAddInputSchema,
+  queryPatternSearch,
+  queryPatternSearchInputSchema,
+} from './tools/query-pattern-manage.js';
 
 /**
  * MCP 서버 인스턴스를 생성하고 도구들을 등록합니다.
@@ -52,7 +58,7 @@ import {
 export function createMcpServer(connManager: ConnectionManager): McpServer {
   const server = new McpServer({
     name: 'nl2sql-mcp',
-    version: '1.2.0',
+    version: '1.5.0',
   });
 
   // 1단계: db_test_connection - 환경변수 기반 연결 테스트
@@ -223,7 +229,46 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 8단계: nl2sql_schema - DB 스키마 정보 조회
+  // 8단계: query_pattern_add - 자주 사용하는 쿼리 패턴 등록
+  server.registerTool(
+    'query_pattern_add',
+    {
+      description:
+        'Register a frequently used query pattern into the database. ' +
+        'The pattern will be available as hints for future SQL generation. ' +
+        'Cache is automatically invalidated after registration. ' +
+        'Optionally specify connectionId.',
+      inputSchema: queryPatternAddInputSchema,
+    },
+    async (args) => {
+      const input = queryPatternAddInputSchema.parse(args);
+      const result = await queryPatternAdd(input, connManager);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // 9단계: query_pattern_search - 쿼리 패턴 키워드 검색
+  server.registerTool(
+    'query_pattern_search',
+    {
+      description:
+        'Search registered query patterns by keyword (matches patternName or description). ' +
+        'Returns matching patterns with their SQL templates and keywords. ' +
+        'Optionally specify connectionId.',
+      inputSchema: queryPatternSearchInputSchema,
+    },
+    async (args) => {
+      const input = queryPatternSearchInputSchema.parse(args);
+      const result = await queryPatternSearch(input, connManager);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // 10단계: nl2sql_schema - DB 스키마 정보 조회
   server.registerTool(
     'nl2sql_schema',
     {
@@ -252,7 +297,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 9단계: nl2sql_query - 자연어 → SQL 변환 및 실행
+  // 11단계: nl2sql_query - 자연어 → SQL 변환 및 실행
   server.registerTool(
     'nl2sql_query',
     {
@@ -280,7 +325,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 10단계: db_disconnect - 연결 해제 및 리소스 반환
+  // 12단계: db_disconnect - 연결 해제 및 리소스 반환
   server.registerTool(
     'db_disconnect',
     {
