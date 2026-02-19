@@ -342,9 +342,9 @@ export function buildTableSelectionPrompt(
 
   sections.push(`User question: ${naturalLanguageQuery}`);
 
-  sections.push(
-    `Return ONLY a JSON array of table names (without schema prefix) that are needed to answer the question. Include tables needed for JOINs. Example: ["customers", "orders"]`
-  );
+  // sections.push(
+  //   `Return ONLY a JSON array of table names (without schema prefix) that are needed to answer the question. Include tables needed for JOINs. Example: ["customers", "orders"]`
+  // );
 
   return sections.join('\n\n');
 }

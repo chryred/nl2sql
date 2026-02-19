@@ -365,7 +365,7 @@ queries:
   recentQueries:
     sql: |
       SELECT
-        sql_text as query,
+        UTL_RAW.CAST_TO_RAW(sql_text) as query,
         executions as call_count,
         ROUND(elapsed_time / NULLIF(executions, 0) / 1000, 2) as avg_time_ms
       FROM v$sql
