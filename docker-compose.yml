@@ -14,6 +14,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      platforms:
+        - "linux/amd64"
     image: nl2sql-mcp:latest
     container_name: nl2sql-mcp
     restart: unless-stopped
@@ -24,6 +26,7 @@ services:
       - MCP_TRANSPORT=sse
       - MCP_PORT=3001
       - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - MCP_SESSION_IDLE_TTL=${MCP_SESSION_IDLE_TTL:-1800}
 
       # Database Configuration
       - DB_TYPE=${DB_TYPE:-postgresql}

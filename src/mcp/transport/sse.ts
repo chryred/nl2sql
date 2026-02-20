@@ -23,6 +23,8 @@ export interface SSEServerOptions {
   authToken?: string;
   /** CORS 허용 도메인 (기본값: '*') */
   corsOrigin?: string;
+  /** 세션 유휴 타임아웃 밀리초 (기본값: 30분, 0이면 비활성화) */
+  sessionIdleTtlMs?: number;
 }
 
 /**
@@ -64,18 +66,53 @@ function setCorsHeaders(res: ServerResponse, origin: string): void {
 
 /**
  * Streamable HTTP 서버를 시작합니다.
+ * 세션마다 새로운 McpServer 인스턴스를 생성하여 다중 연결을 지원합니다.
  *
- * @param mcpServer - MCP 서버 인스턴스
+ * @param mcpServerFactory - 세션별 McpServer 생성 팩토리 함수
  * @param options - 서버 옵션
  */
 export function startSSEServer(
-  mcpServer: McpServer,
+  mcpServerFactory: () => McpServer,
   options: SSEServerOptions = {}
 ): void {
-  const { port = 3001, authToken, corsOrigin = '*' } = options;
+  const DEFAULT_SESSION_IDLE_TTL_MS = 30 * 60 * 1000; // 30분
+  const SESSION_SWEEP_INTERVAL_MS = 60 * 1000; // 1분마다 sweep
+  const {
+    port = 3001,
+    authToken,
+    corsOrigin = '*',
+    sessionIdleTtlMs = DEFAULT_SESSION_IDLE_TTL_MS,
+  } = options;
 
   // Streamable HTTP 전송 인스턴스 저장소
   const transports = new Map<string, StreamableHTTPServerTransport>();
+  // 세션별 마지막 활동 시간 추적
+  const sessionLastActivity = new Map<string, number>();
+
+  /**
+   * 유휴 세션을 정리합니다.
+   */
+  function sweepIdleSessions(): void {
+    if (sessionIdleTtlMs <= 0) return;
+    const now = Date.now();
+    for (const [sessionId, lastActivity] of sessionLastActivity) {
+      if (now - lastActivity > sessionIdleTtlMs) {
+        const transport = transports.get(sessionId);
+        if (transport) {
+          console.log(`[MCP] Closing idle session: ${sessionId} (idle ${Math.round((now - lastActivity) / 1000)}s)`);
+          transport.close().catch(console.error);
+          transports.delete(sessionId);
+        }
+        sessionLastActivity.delete(sessionId);
+      }
+    }
+  }
+
+  // 주기적 유휴 세션 sweep
+  const sweepTimer = sessionIdleTtlMs > 0
+    ? setInterval(sweepIdleSessions, SESSION_SWEEP_INTERVAL_MS)
+    : null;
+  if (sweepTimer) sweepTimer.unref();
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -113,7 +150,8 @@ export function startSSEServer(
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
         if (sessionId && transports.has(sessionId)) {
-          // 기존 세션 사용
+          // 기존 세션 사용 (활동 시간 갱신)
+          sessionLastActivity.set(sessionId, Date.now());
           const transport = transports.get(sessionId)!;
           await transport.handleRequest(req, res);
         } else if (req.method === 'POST') {
@@ -128,19 +166,22 @@ export function startSSEServer(
             if (sid) {
               console.log(`[MCP] Session closed: ${sid}`);
               transports.delete(sid);
+              sessionLastActivity.delete(sid);
             }
           };
 
-          // MCP 서버와 연결
+          // 세션별 MCP 서버 인스턴스 생성 및 연결
+          const mcpServer = mcpServerFactory();
           await mcpServer.connect(transport);
 
           // 요청 처리
           await transport.handleRequest(req, res);
 
-          // 세션 저장
+          // 세션 저장 (활동 시간 기록)
           const newSessionId = transport.sessionId;
           if (newSessionId) {
             transports.set(newSessionId, transport);
+            sessionLastActivity.set(newSessionId, Date.now());
             console.log(`[MCP] New session: ${newSessionId}`);
           }
         } else {
@@ -182,12 +223,16 @@ export function startSSEServer(
   const cleanup = () => {
     console.log('\n[MCP] Shutting down server...');
 
+    // sweep 타이머 정리
+    if (sweepTimer) clearInterval(sweepTimer);
+
     // 모든 세션 종료
     for (const [sessionId, transport] of transports) {
       console.log(`[MCP] Closing session: ${sessionId}`);
       transport.close().catch(console.error);
     }
     transports.clear();
+    sessionLastActivity.clear();
 
     server.close(() => {
       console.log('[MCP] Server closed');

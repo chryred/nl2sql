@@ -10,6 +10,7 @@
  * - MCP_TRANSPORT: 전송 방식 (stdio | sse, 기본값: stdio)
  * - MCP_PORT: SSE 서버 포트 (기본값: 3001)
  * - MCP_AUTH_TOKEN: SSE Bearer 인증 토큰 (선택)
+ * - MCP_SESSION_IDLE_TTL: SSE 세션 유휴 타임아웃 초 (기본값: 1800, 0이면 비활성화)
  *
  * @module mcp
  *
@@ -34,6 +35,9 @@ async function main(): Promise<void> {
   const transport = process.env.MCP_TRANSPORT || 'stdio';
   const port = parseInt(process.env.MCP_PORT || '3001', 10);
   const authToken = process.env.MCP_AUTH_TOKEN;
+  const sessionIdleTtlMs = process.env.MCP_SESSION_IDLE_TTL !== undefined
+    ? parseInt(process.env.MCP_SESSION_IDLE_TTL, 10) * 1000
+    : undefined; // undefined = sse.ts 기본값(30분) 사용
 
   // ConnectionManager 생성
   const connManager = new ConnectionManager({
@@ -41,34 +45,36 @@ async function main(): Promise<void> {
     idleTtlMs: 30 * 60 * 1000,
   });
 
-  // 환경변수에 DB 설정이 있으면 기본 연결 자동 등록
+  // DB 설정이 있으면 기본 연결 자동 등록 (미설정 시 조용히 스킵)
   try {
     const config = getConfig();
-    validateConfig(config);
+    const hasDatabaseConfig = !!(config.database.user && config.database.database);
 
-    connManager.registerDefault({
-      type: config.database.type,
-      host: config.database.host,
-      port: config.database.port,
-      user: config.database.user,
-      password: config.database.password,
-      database: config.database.database,
-      serviceName: config.database.serviceName,
-      oracleDataCharset: config.database.oracleDataCharset,
-    });
-  } catch {
-    console.error(
-      '[MCP] No default connection registered (environment variables not configured or invalid)'
-    );
+    // 접속정보 존재시
+    if (hasDatabaseConfig) {
+      validateConfig(config);
+      connManager.registerDefault({
+        type: config.database.type,
+        host: config.database.host,
+        port: config.database.port,
+        user: config.database.user,
+        password: config.database.password,
+        database: config.database.database,
+        serviceName: config.database.serviceName,
+        oracleDataCharset: config.database.oracleDataCharset,
+      });
+    }
+  } catch (err) {
+    console.error('[MCP] Failed to register default connection:', err);
   }
-
-  const server = createMcpServer(connManager);
 
   if (transport === 'sse') {
     console.log('✅[MCP] Starting NL2SQL MCP server in SSE mode');
-    startSSEServer(server, { port, authToken });
+    // SSE: 세션마다 새 McpServer 인스턴스를 생성하는 팩토리 전달
+    startSSEServer(() => createMcpServer(connManager), { port, authToken, sessionIdleTtlMs });
   } else {
     console.error('[MCP] Starting NL2SQL MCP server in stdio mode');
+    const server = createMcpServer(connManager);
     const stdioTransport = new StdioServerTransport();
     await server.connect(stdioTransport);
     console.error('✅[MCP] Server connected via stdio');
