@@ -27,6 +27,7 @@ import {
 } from '../../database/metadata/index.js';
 import { formatInferenceResult } from '../../mcp/tools/infer-relationships.js';
 import { logger } from '../../logger/index.js';
+import { closeConnection } from '../../database/connection.js';
 
 /**
  * Interactive 모드 옵션
@@ -504,7 +505,8 @@ export class InteractiveSession {
     console.log(chalk.cyan('\n안녕히 가세요! 👋'));
     this.isRunning = false;
     this.rl.close();
-    process.exit(0);
+    // Knex 연결 풀 정상 drain 후 종료
+    void closeConnection().finally(() => process.exit(0));
   }
 }
 
