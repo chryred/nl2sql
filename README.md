@@ -525,6 +525,14 @@ nl2sql_ts/
 | Linting | ESLint, Prettier |
 | Container | Docker, Docker Compose |
 
+## Version History
+
+### v1.5.1
+- 메모리 누수 수정: SSE 모드 이중 SIGINT/SIGTERM 핸들러 제거
+- 메모리 누수 수정: InteractiveSession 시그널 리스너 정상 해제
+- 메모리 누수 수정: 퇴거된 연결의 cacheInitPromise 참조 유지 방지
+- 메모리 누수 수정: interactive 모드 종료 시 Knex 연결 풀 정상 drain
+
 ## License
 
 MIT

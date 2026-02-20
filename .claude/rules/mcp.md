@@ -42,6 +42,10 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 
 ## Version History
 
+### v1.5.1
+- SSE 모드 이중 SIGINT/SIGTERM 핸들러 race condition 수정
+- `startSSEServer()` cleanup 함수 반환으로 시그널 핸들러 통합 관리
+
 ### v1.5.0
 - 1st Pass 테이블 선별 프롬프트 강화 (TABLE_RELATIONSHIPS, queryPatterns 힌트, patternKeywords 추가)
 - JOIN 필요 테이블 누락 방지: 관계 정보 기반으로 관련 테이블 자동 포함
