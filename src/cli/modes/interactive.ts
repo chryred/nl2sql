@@ -61,6 +61,7 @@ const COMMANDS = {
  * Interactive CLI 세션 클래스
  */
 export class InteractiveSession {
+  private readonly boundExit = (): void => { this.handleExit(); };
   private rl: readline.Interface;
   private engine: NL2SQLEngine;
   private currentFormat: OutputFormat;
@@ -83,16 +84,15 @@ export class InteractiveSession {
       output: process.stdout,
       terminal: true,
     });
-
-    // Graceful shutdown
-    process.on('SIGINT', () => this.handleExit());
-    process.on('SIGTERM', () => this.handleExit());
   }
 
   /**
    * Interactive 세션을 시작합니다.
    */
   async start(showWelcome: boolean = true): Promise<void> {
+    process.on('SIGINT', this.boundExit);
+    process.on('SIGTERM', this.boundExit);
+
     if (showWelcome) {
       this.printWelcome();
     }
@@ -499,6 +499,8 @@ export class InteractiveSession {
    * 종료를 처리합니다.
    */
   private handleExit(): void {
+    process.removeListener('SIGINT', this.boundExit);
+    process.removeListener('SIGTERM', this.boundExit);
     console.log(chalk.cyan('\n안녕히 가세요! 👋'));
     this.isRunning = false;
     this.rl.close();
