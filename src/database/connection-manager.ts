@@ -242,11 +242,14 @@ export class ConnectionManager {
     if (entry.cacheInitPromise) return entry.cacheInitPromise;
 
     entry.cacheInitPromise = loadMetadataCacheIsolated(
-      entry.knex,
-      entry.params.type
-    )
+        entry.knex,
+        entry.params.type
+      )
       .then((cache) => {
-        entry.metadataCache = cache;
+        // 퇴거된 entry라면 캐시 설정 건너뜀
+        if (this.entries.has(connectionId)) {
+          entry.metadataCache = cache;
+        }
         entry.cacheInitPromise = null;
         return cache;
       })
