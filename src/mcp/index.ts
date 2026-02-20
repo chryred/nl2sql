@@ -68,10 +68,12 @@ async function main(): Promise<void> {
     console.error('[MCP] Failed to register default connection:', err);
   }
 
+  let sseCleanup: (() => Promise<void>) | null = null;
+
   if (transport === 'sse') {
     console.log('✅[MCP] Starting NL2SQL MCP server in SSE mode');
     // SSE: 세션마다 새 McpServer 인스턴스를 생성하는 팩토리 전달
-    startSSEServer(() => createMcpServer(connManager), { port, authToken, sessionIdleTtlMs });
+    sseCleanup = startSSEServer(() => createMcpServer(connManager), { port, authToken, sessionIdleTtlMs });
   } else {
     console.error('[MCP] Starting NL2SQL MCP server in stdio mode');
     const server = createMcpServer(connManager);
@@ -80,16 +82,14 @@ async function main(): Promise<void> {
     console.error('✅[MCP] Server connected via stdio');
   }
 
-  // 종료 시 정리
-  const cleanup = () => {
-    connManager.destroyAll().then(() => {
-      process.exit(0);
-    }).catch(() => {
-      process.exit(1);
-    });
+  // 종료 시 정리 (SSE cleanup 먼저 실행 후 DB 연결 해제)
+  const cleanup = async () => {
+    if (sseCleanup) await sseCleanup().catch(console.error);
+    await connManager.destroyAll().catch(() => {});
+    process.exit(0);
   };
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', () => { void cleanup(); });
+  process.on('SIGTERM', () => { void cleanup(); });
 }
 
 main().catch((error) => {

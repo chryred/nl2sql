@@ -70,11 +70,12 @@ function setCorsHeaders(res: ServerResponse, origin: string): void {
  *
  * @param mcpServerFactory - 세션별 McpServer 생성 팩토리 함수
  * @param options - 서버 옵션
+ * @returns cleanup 함수 (서버 종료 및 세션 정리)
  */
 export function startSSEServer(
   mcpServerFactory: () => McpServer,
   options: SSEServerOptions = {}
-): void {
+): () => Promise<void> {
   const DEFAULT_SESSION_IDLE_TTL_MS = 30 * 60 * 1000; // 30분
   const SESSION_SWEEP_INTERVAL_MS = 60 * 1000; // 1분마다 sweep
   const {
@@ -219,27 +220,28 @@ export function startSSEServer(
     }
   });
 
-  // 프로세스 종료 시 서버 정리
-  const cleanup = () => {
+  // 프로세스 종료 시 서버 정리 (호출자에게 반환, 직접 핸들러 등록 안 함)
+  const cleanup = async (): Promise<void> => {
     console.log('\n[MCP] Shutting down server...');
 
-    // sweep 타이머 정리
     if (sweepTimer) clearInterval(sweepTimer);
 
-    // 모든 세션 종료
-    for (const [sessionId, transport] of transports) {
-      console.log(`[MCP] Closing session: ${sessionId}`);
-      transport.close().catch(console.error);
-    }
+    // 모든 세션을 닫고 완료 대기
+    await Promise.all(
+      [...transports.values()].map((t) => t.close().catch(console.error))
+    );
     transports.clear();
     sessionLastActivity.clear();
 
-    server.close(() => {
-      console.log('[MCP] Server closed');
-      process.exit(0);
+    // keep-alive 연결 포함 모든 연결 강제 종료 후 서버 닫기
+    await new Promise<void>((resolve) => {
+      server.closeAllConnections();
+      server.close(() => {
+        console.log('[MCP] Server closed');
+        resolve();
+      });
     });
   };
 
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
+  return cleanup;
 }
