@@ -238,3 +238,12 @@ queries:
       ORDER BY calls DESC
       LIMIT 20
     optional: true
+
+# ─── 코멘트 SQL 템플릿 ────────────────────────────────────────────────────────
+comments:
+  # 테이블 코멘트 설정
+  commentOnTable:
+    sql: 'COMMENT ON TABLE "{schema}"."{table}" IS ?'
+  # 컬럼 코멘트 설정
+  commentOnColumn:
+    sql: 'COMMENT ON COLUMN "{schema}"."{table}"."{column}" IS ?'

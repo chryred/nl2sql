@@ -199,3 +199,18 @@ queries:
     params:
       - database
     optional: true
+
+# ─── 코멘트 SQL 템플릿 ────────────────────────────────────────────────────────
+comments:
+  # 컬럼 정의 조회 (ALTER TABLE MODIFY COLUMN에 필요)
+  getColumnDef:
+    sql: |
+      SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+  # 테이블 코멘트 설정
+  commentOnTable:
+    sql: "ALTER TABLE `{schema}`.`{table}` COMMENT = ?"
+  # 컬럼 코멘트 설정 (ALTER TABLE MODIFY COLUMN)
+  commentOnColumn:
+    sql: "ALTER TABLE `{schema}`.`{table}` MODIFY COLUMN `{column}` {columnType} {nullPart}{defaultPart}{extraPart} COMMENT ?"

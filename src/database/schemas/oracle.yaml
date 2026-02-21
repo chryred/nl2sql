@@ -377,3 +377,18 @@ queries:
       ORDER BY executions DESC
       FETCH FIRST 20 ROWS ONLY
     optional: true
+
+# ─── 코멘트 SQL 템플릿 ────────────────────────────────────────────────────────
+comments:
+  # 테이블 코멘트 설정
+  commentOnTable:
+    sql: 'COMMENT ON TABLE "{schema}"."{table}" IS ?'
+  # 컬럼 코멘트 설정
+  commentOnColumn:
+    sql: 'COMMENT ON COLUMN "{schema}"."{table}"."{column}" IS ?'
+  # 테이블 코멘트 설정 (한글 charset 처리용 - UTL_RAW 기반)
+  commentOnTableWithCharset:
+    sql: "BEGIN EXECUTE IMMEDIATE 'COMMENT ON TABLE \"{schema}\".\"{table}\" IS ''' || UTL_RAW.CAST_TO_VARCHAR2(HEXTORAW(?)) || ''''; END;"
+  # 컬럼 코멘트 설정 (한글 charset 처리용 - UTL_RAW 기반)
+  commentOnColumnWithCharset:
+    sql: "BEGIN EXECUTE IMMEDIATE 'COMMENT ON COLUMN \"{schema}\".\"{table}\".\"{column}\" IS ''' || UTL_RAW.CAST_TO_VARCHAR2(HEXTORAW(?)) || ''''; END;"
