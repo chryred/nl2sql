@@ -600,6 +600,8 @@ type CommentSQLBuilderFn = (
   mysqlColumnDef?: MySQLColumnDef | null
 ) => { sql: string; bindings: unknown[] };
 
+// 각 빌더는 (candidate, templates, oracleDataCharset?, mysqlColumnDef?)를 받지만
+// 자신의 DBMS에 해당하는 파라미터만 사용합니다.
 const COMMENT_SQL_BUILDERS: Record<DatabaseType, CommentSQLBuilderFn> = {
   postgresql: (c, t) => buildPostgresCommentSQL(c, t),
   mysql: (c, t, _charset, colDef) => buildMysqlCommentSQL(c, t, colDef),
@@ -626,6 +628,46 @@ export function buildCommentSQL(
 }
 
 /**
+ * mysql/oracle 공통: 개별 실행 + 에러 카운트
+ */
+async function applyOneByOne(
+  knex: Knex,
+  dbType: DatabaseType,
+  candidates: CommentCandidate[],
+  oracleDataCharset?: string
+): Promise<{ applied: number; skipped: number; failed: number }> {
+  let applied = 0;
+  let failed = 0;
+  for (const candidate of candidates) {
+    try {
+      let mysqlColDef: MySQLColumnDef | null = null;
+      if (dbType === 'mysql' && candidate.column != null && candidate.column !== '') {
+        mysqlColDef = await getColumnDefinition(
+          knex,
+          candidate.schema,
+          candidate.table,
+          candidate.column
+        );
+      }
+      const { sql, bindings } = buildCommentSQL(
+        candidate,
+        dbType,
+        oracleDataCharset,
+        mysqlColDef
+      );
+      await knex.raw(sql, bindings);
+      applied++;
+    } catch (e) {
+      logger.warn(
+        `applyComments: ${dbType} failed for ${candidate.schema}.${candidate.table}.${candidate.column ?? ''}: ${e}`
+      );
+      failed++;
+    }
+  }
+  return { applied, skipped: 0, failed };
+}
+
+/**
  * 코멘트 후보를 DB에 적용합니다.
  *
  * @param knex - Knex 인스턴스
@@ -640,15 +682,11 @@ export async function applyComments(
   candidates: CommentCandidate[],
   oracleDataCharset?: string
 ): Promise<{ applied: number; skipped: number; failed: number }> {
-  let applied = 0;
-  const skipped = 0;
-  let failed = 0;
-
-  if (candidates.length === 0) {
-    return { applied, skipped, failed };
-  }
+  if (candidates.length === 0) return { applied: 0, skipped: 0, failed: 0 };
 
   if (dbType === 'postgresql') {
+    let applied = 0;
+    let failed = 0;
     try {
       await knex.transaction(async (trx) => {
         for (const candidate of candidates) {
@@ -661,58 +699,8 @@ export async function applyComments(
       logger.warn(`applyComments: PostgreSQL transaction failed: ${e}`);
       failed += candidates.length - applied;
     }
-    return { applied, skipped, failed };
+    return { applied, skipped: 0, failed };
   }
 
-  if (dbType === 'mysql') {
-    for (const candidate of candidates) {
-      try {
-        let mysqlColDef: MySQLColumnDef | null = null;
-        if (candidate.column != null && candidate.column !== '') {
-          mysqlColDef = await getColumnDefinition(
-            knex,
-            candidate.schema,
-            candidate.table,
-            candidate.column
-          );
-        }
-        const { sql, bindings } = buildCommentSQL(
-          candidate,
-          'mysql',
-          undefined,
-          mysqlColDef
-        );
-        await knex.raw(sql, bindings);
-        applied++;
-      } catch (e) {
-        logger.warn(
-          `applyComments: MySQL failed for ${candidate.schema}.${candidate.table}.${candidate.column ?? ''}: ${e}`
-        );
-        failed++;
-      }
-    }
-    return { applied, skipped, failed };
-  }
-
-  if (dbType === 'oracle') {
-    for (const candidate of candidates) {
-      try {
-        const { sql, bindings } = buildCommentSQL(
-          candidate,
-          'oracle',
-          oracleDataCharset
-        );
-        await knex.raw(sql, bindings);
-        applied++;
-      } catch (e) {
-        logger.warn(
-          `applyComments: Oracle failed for ${candidate.schema}.${candidate.table}.${candidate.column ?? ''}: ${e}`
-        );
-        failed++;
-      }
-    }
-    return { applied, skipped, failed };
-  }
-
-  throw new Error(`Unsupported database type: ${dbType}`);
+  return applyOneByOne(knex, dbType, candidates, oracleDataCharset);
 }
