@@ -504,6 +504,108 @@ async function getColumnDefinition(
   };
 }
 
+function buildPostgresCommentSQL(
+  candidate: CommentCandidate,
+  templates: CommentSQLTemplates
+): { sql: string; bindings: unknown[] } {
+  const isColumn = candidate.column != null && candidate.column !== '';
+  const tmpl = isColumn ? templates.commentOnColumn : templates.commentOnTable;
+  const sql = applyTemplate(tmpl.sql, {
+    schema: candidate.schema,
+    table: candidate.table,
+    ...(isColumn ? { column: candidate.column as string } : {}),
+  });
+  return { sql, bindings: [candidate.comment] };
+}
+
+function buildMysqlCommentSQL(
+  candidate: CommentCandidate,
+  templates: CommentSQLTemplates,
+  mysqlColumnDef?: MySQLColumnDef | null
+): { sql: string; bindings: unknown[] } {
+  const isColumn = candidate.column != null && candidate.column !== '';
+  if (isColumn) {
+    if (!mysqlColumnDef) {
+      throw new Error(
+        `MySQL column definition not available for ${candidate.schema}.${candidate.table}.${candidate.column}`
+      );
+    }
+    const nullPart = mysqlColumnDef.isNullable === 'NO' ? 'NOT NULL' : 'NULL';
+    const defaultPart =
+      mysqlColumnDef.columnDefault !== null
+        ? ` DEFAULT '${mysqlColumnDef.columnDefault.replace(/'/g, "''")}'`
+        : '';
+    const extraPart = mysqlColumnDef.extra ? ` ${mysqlColumnDef.extra}` : '';
+    const sql = applyTemplate(templates.commentOnColumn.sql, {
+      schema: candidate.schema,
+      table: candidate.table,
+      column: candidate.column as string,
+      columnType: mysqlColumnDef.columnType,
+      nullPart,
+      defaultPart,
+      extraPart,
+    });
+    return { sql, bindings: [candidate.comment] };
+  }
+  const sql = applyTemplate(templates.commentOnTable.sql, {
+    schema: candidate.schema,
+    table: candidate.table,
+  });
+  return { sql, bindings: [candidate.comment] };
+}
+
+function buildOracleCommentSQL(
+  candidate: CommentCandidate,
+  templates: CommentSQLTemplates,
+  oracleDataCharset?: string
+): { sql: string; bindings: unknown[] } {
+  const isColumn = candidate.column != null && candidate.column !== '';
+  const schemaUpper = candidate.schema.toUpperCase();
+  const tableUpper = candidate.table.toUpperCase();
+
+  if (oracleDataCharset) {
+    const hexComment = encodeForOracle(candidate.comment, oracleDataCharset);
+    if (isColumn) {
+      const colUpper = (candidate.column as string).toUpperCase();
+      const tmpl = templates.commentOnColumnWithCharset;
+      if (!tmpl)
+        throw new Error('commentOnColumnWithCharset SQL not found in oracle.yaml');
+      const sql = applyTemplate(tmpl.sql, {
+        schema: schemaUpper,
+        table: tableUpper,
+        column: colUpper,
+      });
+      return { sql, bindings: [hexComment] };
+    }
+    const tmpl = templates.commentOnTableWithCharset;
+    if (!tmpl)
+      throw new Error('commentOnTableWithCharset SQL not found in oracle.yaml');
+    const sql = applyTemplate(tmpl.sql, { schema: schemaUpper, table: tableUpper });
+    return { sql, bindings: [hexComment] };
+  }
+
+  const tmpl = isColumn ? templates.commentOnColumn : templates.commentOnTable;
+  const sql = applyTemplate(tmpl.sql, {
+    schema: schemaUpper,
+    table: tableUpper,
+    ...(isColumn ? { column: (candidate.column as string).toUpperCase() } : {}),
+  });
+  return { sql, bindings: [candidate.comment] };
+}
+
+type CommentSQLBuilderFn = (
+  candidate: CommentCandidate,
+  templates: CommentSQLTemplates,
+  oracleDataCharset?: string,
+  mysqlColumnDef?: MySQLColumnDef | null
+) => { sql: string; bindings: unknown[] };
+
+const COMMENT_SQL_BUILDERS: Record<DatabaseType, CommentSQLBuilderFn> = {
+  postgresql: (c, t) => buildPostgresCommentSQL(c, t),
+  mysql: (c, t, _charset, colDef) => buildMysqlCommentSQL(c, t, colDef),
+  oracle: (c, t, charset) => buildOracleCommentSQL(c, t, charset),
+};
+
 /**
  * DBMS별 COMMENT SQL과 바인딩을 생성합니다.
  *
@@ -519,97 +621,8 @@ export function buildCommentSQL(
   oracleDataCharset?: string,
   mysqlColumnDef?: MySQLColumnDef | null
 ): { sql: string; bindings: unknown[] } {
-  const isColumn = candidate.column != null && candidate.column !== '';
-  const comment = candidate.comment;
   const templates = loadCommentSQL(dbType);
-
-  if (dbType === 'postgresql') {
-    const tmpl = isColumn ? templates.commentOnColumn : templates.commentOnTable;
-    const sql = applyTemplate(tmpl.sql, {
-      schema: candidate.schema,
-      table: candidate.table,
-      ...(isColumn ? { column: candidate.column as string } : {}),
-    });
-    return { sql, bindings: [comment] };
-  }
-
-  if (dbType === 'mysql') {
-    if (isColumn) {
-      if (!mysqlColumnDef) {
-        throw new Error(
-          `MySQL column definition not available for ${candidate.schema}.${candidate.table}.${candidate.column}`
-        );
-      }
-      const nullPart = mysqlColumnDef.isNullable === 'NO' ? 'NOT NULL' : 'NULL';
-      const defaultPart =
-        mysqlColumnDef.columnDefault !== null
-          ? ` DEFAULT '${mysqlColumnDef.columnDefault.replace(/'/g, "''")}'`
-          : '';
-      const extraPart = mysqlColumnDef.extra ? ` ${mysqlColumnDef.extra}` : '';
-      const sql = applyTemplate(templates.commentOnColumn.sql, {
-        schema: candidate.schema,
-        table: candidate.table,
-        column: candidate.column as string,
-        columnType: mysqlColumnDef.columnType,
-        nullPart,
-        defaultPart,
-        extraPart,
-      });
-      return { sql, bindings: [comment] };
-    } else {
-      const sql = applyTemplate(templates.commentOnTable.sql, {
-        schema: candidate.schema,
-        table: candidate.table,
-      });
-      return { sql, bindings: [comment] };
-    }
-  }
-
-  if (dbType === 'oracle') {
-    const schemaUpper = candidate.schema.toUpperCase();
-    const tableUpper = candidate.table.toUpperCase();
-
-    if (oracleDataCharset) {
-      const hexComment = encodeForOracle(comment, oracleDataCharset);
-      if (isColumn) {
-        const colUpper = (candidate.column as string).toUpperCase();
-        const tmpl = templates.commentOnColumnWithCharset;
-        if (!tmpl)
-          throw new Error(
-            'commentOnColumnWithCharset SQL not found in oracle.yaml'
-          );
-        const sql = applyTemplate(tmpl.sql, {
-          schema: schemaUpper,
-          table: tableUpper,
-          column: colUpper,
-        });
-        return { sql, bindings: [hexComment] };
-      } else {
-        const tmpl = templates.commentOnTableWithCharset;
-        if (!tmpl)
-          throw new Error(
-            'commentOnTableWithCharset SQL not found in oracle.yaml'
-          );
-        const sql = applyTemplate(tmpl.sql, {
-          schema: schemaUpper,
-          table: tableUpper,
-        });
-        return { sql, bindings: [hexComment] };
-      }
-    } else {
-      const tmpl = isColumn ? templates.commentOnColumn : templates.commentOnTable;
-      const sql = applyTemplate(tmpl.sql, {
-        schema: schemaUpper,
-        table: tableUpper,
-        ...(isColumn
-          ? { column: (candidate.column as string).toUpperCase() }
-          : {}),
-      });
-      return { sql, bindings: [comment] };
-    }
-  }
-
-  throw new Error(`Unsupported database type: ${dbType}`);
+  return COMMENT_SQL_BUILDERS[dbType](candidate, templates, oracleDataCharset, mysqlColumnDef);
 }
 
 /**
