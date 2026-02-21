@@ -1,0 +1,2 @@
+  generate(systemPrompt: string, userPrompt: string): Promise<string>;
+  async generate(systemPrompt: string, userPrompt: string): Promise<string> {
