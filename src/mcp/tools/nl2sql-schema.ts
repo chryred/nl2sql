@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import { getConfig, getAIConfig, validateConfig, type Config } from '../../config/index.js';
+import { getConfig, validateConfig, type Config } from '../../config/index.js';
 import {
   createConnection,
   closeConnection,
@@ -21,6 +21,7 @@ import {
   type SchemaInfo,
 } from '../../database/schema-extractor.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
+import { buildConfigFromEntry } from '../utils/config-helper.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
 
 /**
@@ -114,19 +115,7 @@ export async function nl2sqlSchema(
   if (entry) {
     // ConnectionManager 경로
     try {
-      const aiConfig = getAIConfig();
-      const config: Config = {
-        ai: aiConfig,
-        database: {
-          type: entry.params.type,
-          host: entry.params.host,
-          port: entry.params.port,
-          user: entry.params.user,
-          password: entry.params.password,
-          database: entry.params.database,
-          serviceName: entry.params.serviceName,
-        },
-      };
+      const config = buildConfigFromEntry(entry);
 
       const schema = await extractSchema(entry.knex, config);
       const data = formatSchema(schema, input.format);

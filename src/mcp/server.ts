@@ -33,10 +33,7 @@ import {
   cacheRefresh,
   cacheRefreshInputSchema,
 } from './tools/cache-manage.js';
-import {
-  schemaSetup,
-  schemaSetupInputSchema,
-} from './tools/schema-setup.js';
+import { schemaSetup, schemaSetupInputSchema } from './tools/schema-setup.js';
 import {
   inferRelationshipsTool,
   inferRelationshipsInputSchema,
@@ -48,6 +45,11 @@ import {
   queryPatternSearch,
   queryPatternSearchInputSchema,
 } from './tools/query-pattern-manage.js';
+import {
+  autoCommentsTool,
+  autoCommentsInputSchema,
+  formatAutoCommentResult,
+} from './tools/auto-comments.js';
 
 /**
  * MCP 서버 인스턴스를 생성하고 도구들을 등록합니다.
@@ -207,16 +209,15 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
       const input = inferRelationshipsInputSchema.parse(args);
       const result = await inferRelationshipsTool(input, connManager);
 
-      const text =
-        result.result
-          ? formatInferenceResult(result.result) +
-            '\n\n' +
-            JSON.stringify(
-              { success: result.success, message: result.message },
-              null,
-              2
-            )
-          : JSON.stringify(result, null, 2);
+      const text = result.result
+        ? formatInferenceResult(result.result) +
+          '\n\n' +
+          JSON.stringify(
+            { success: result.success, message: result.message },
+            null,
+            2
+          )
+        : JSON.stringify(result, null, 2);
 
       return {
         content: [
@@ -244,7 +245,9 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
       const input = queryPatternAddInputSchema.parse(args);
       const result = await queryPatternAdd(input, connManager);
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
       };
     }
   );
@@ -263,12 +266,45 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
       const input = queryPatternSearchInputSchema.parse(args);
       const result = await queryPatternSearch(input, connManager);
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        content: [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ],
       };
     }
   );
 
-  // 10단계: nl2sql_schema - DB 스키마 정보 조회
+  // 10단계: auto_generate_comments - 미설정 테이블/컬럼 코멘트 자동 생성
+  server.registerTool(
+    'auto_generate_comments',
+    {
+      description:
+        'Automatically generate comments for tables and columns that have no comment set. ' +
+        'Uses AI to infer comments from physical names, data types, and metadata context. ' +
+        'Use mode=preview to see candidates without writing to DB, mode=apply to write comments. ' +
+        'Existing comments are never overwritten. Optionally specify connectionId, schema, or tables.',
+      inputSchema: autoCommentsInputSchema,
+    },
+    async (args) => {
+      const input = autoCommentsInputSchema.parse(args);
+      const result = await autoCommentsTool(input, connManager);
+
+      const text = result.result
+        ? formatAutoCommentResult(result.result) +
+          '\n\n' +
+          JSON.stringify(
+            { success: result.success, message: result.message },
+            null,
+            2
+          )
+        : JSON.stringify(result, null, 2);
+
+      return {
+        content: [{ type: 'text' as const, text }],
+      };
+    }
+  );
+
+  // 11단계: nl2sql_schema - DB 스키마 정보 조회
   server.registerTool(
     'nl2sql_schema',
     {
@@ -297,7 +333,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 11단계: nl2sql_query - 자연어 → SQL 변환 및 실행
+  // 12단계: nl2sql_query - 자연어 → SQL 변환 및 실행
   server.registerTool(
     'nl2sql_query',
     {
@@ -325,11 +361,12 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 12단계: db_disconnect - 연결 해제 및 리소스 반환
+  // 13단계: db_disconnect - 연결 해제 및 리소스 반환
   server.registerTool(
     'db_disconnect',
     {
-      description: 'Disconnect a registered database connection and release resources.',
+      description:
+        'Disconnect a registered database connection and release resources.',
       inputSchema: dbDisconnectInputSchema,
     },
     async (args) => {

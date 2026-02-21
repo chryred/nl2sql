@@ -22,6 +22,7 @@ import {
 import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
 import { validateNaturalLanguageInput } from '../../utils/input-validator.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
+import { buildConfigFromEntry } from '../utils/config-helper.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
 
 /**
@@ -57,35 +58,6 @@ export interface Nl2sqlQueryOutput {
   results?: unknown[];
   rowCount?: number;
   error?: string;
-}
-
-/**
- * ConnectionEntry에서 Config 객체를 빌드합니다.
- */
-function buildConfigFromEntry(entry: {
-  params: {
-    type: 'postgresql' | 'mysql' | 'oracle';
-    host: string;
-    port: number;
-    user: string;
-    password: string;
-    database: string;
-    serviceName?: string;
-  };
-}): Config {
-  const aiConfig = getAIConfig();
-  return {
-    ai: aiConfig,
-    database: {
-      type: entry.params.type,
-      host: entry.params.host,
-      port: entry.params.port,
-      user: entry.params.user,
-      password: entry.params.password,
-      database: entry.params.database,
-      serviceName: entry.params.serviceName,
-    },
-  };
 }
 
 /**

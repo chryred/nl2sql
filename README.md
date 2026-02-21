@@ -60,6 +60,7 @@ NODE_ENV=development       # Options: development, production
 환경변수 대신 설정 파일을 사용할 수 있습니다. 프로젝트 루트에 `nl2sql.config.json` 또는 `nl2sql.config.yaml` 파일을 생성합니다:
 
 **nl2sql.config.json:**
+
 ```json
 {
   "ai": {
@@ -168,6 +169,7 @@ npm start -- interactive --format json
 ```
 
 REPL 내부 명령어:
+
 - `.help` - 도움말
 - `.schema [table]` - 스키마 조회
 - `.format [type]` - 출력 형식 변경 (table/json/csv)
@@ -178,20 +180,20 @@ REPL 내부 명령어:
 
 ## Commands
 
-| Command | Alias | Description |
-|---------|-------|-------------|
-| `query <text>` | `q` | Generate SQL from natural language |
-| `schema` | `s` | Display database schema |
-| `setup` | - | Create metadata tables automatically |
-| `infer-relationships` | `ir` | Infer FK relationships automatically |
-| `interactive` | `i` | Start interactive REPL mode |
+| Command               | Alias | Description                          |
+| --------------------- | ----- | ------------------------------------ |
+| `query <text>`        | `q`   | Generate SQL from natural language   |
+| `schema`              | `s`   | Display database schema              |
+| `setup`               | -     | Create metadata tables automatically |
+| `infer-relationships` | `ir`  | Infer FK relationships automatically |
+| `interactive`         | `i`   | Start interactive REPL mode          |
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `-e, --execute` | Execute the generated SQL query |
-| `-y, --yes` | Skip confirmation prompt when executing |
+| Option                  | Description                              |
+| ----------------------- | ---------------------------------------- |
+| `-e, --execute`         | Execute the generated SQL query          |
+| `-y, --yes`             | Skip confirmation prompt when executing  |
 | `-f, --format <format>` | Output format (table, json, csv, prompt) |
 
 ## Example
@@ -217,19 +219,19 @@ NL2SQL은 메타데이터 기반으로 더 정확한 SQL을 생성합니다. `se
 
 ### 메타데이터 테이블
 
-| 테이블 | 설명 |
-|--------|------|
+| 테이블                | 설명                           |
+| --------------------- | ------------------------------ |
 | `table_relationships` | 테이블 간 관계 (FK, 조인 힌트) |
-| `naming_conventions` | 네이밍 규칙 (약어, 접두사 등) |
-| `code_tables` | 공통코드 테이블 정의 |
-| `column_code_mapping` | 컬럼-코드 테이블 매핑 |
-| `code_aliases` | 코드값 한글/영문 별칭 |
-| `glossary_terms` | 비즈니스 용어 사전 |
-| `glossary_aliases` | 용어 별칭 |
-| `glossary_contexts` | 용어 사용 컨텍스트 |
-| `query_patterns` | SQL 쿼리 패턴 |
-| `pattern_parameters` | 패턴 파라미터 |
-| `pattern_keywords` | 패턴 키워드 매핑 |
+| `naming_conventions`  | 네이밍 규칙 (약어, 접두사 등)  |
+| `code_tables`         | 공통코드 테이블 정의           |
+| `column_code_mapping` | 컬럼-코드 테이블 매핑          |
+| `code_aliases`        | 코드값 한글/영문 별칭          |
+| `glossary_terms`      | 비즈니스 용어 사전             |
+| `glossary_aliases`    | 용어 별칭                      |
+| `glossary_contexts`   | 용어 사용 컨텍스트             |
+| `query_patterns`      | SQL 쿼리 패턴                  |
+| `pattern_parameters`  | 패턴 파라미터                  |
+| `pattern_keywords`    | 패턴 키워드 매핑               |
 
 ### 사용 방법
 
@@ -254,6 +256,7 @@ ORACLE_DATA_CHARSET=UTF-8
 ```
 
 설정 파일(`nl2sql.config.yaml`)로도 지정 가능합니다:
+
 ```yaml
 database:
   type: oracle
@@ -272,7 +275,9 @@ MCP `db_connect` 도구에서도 `oracleDataCharset` 파라미터로 지정할 �
 ## Security Features
 
 ### SQL Validation
+
 위험한 SQL 패턴을 자동으로 감지하고 차단합니다:
+
 - **차단**: DROP, DELETE, TRUNCATE, ALTER 문
 - **감지**: SQL 인젝션 패턴 (UNION SELECT, 주석, 파일 접근 등)
 - **허용**: SELECT, INSERT, UPDATE (일반 CRUD 작업)
@@ -284,13 +289,17 @@ $ npm start -- query "DROP TABLE users" --execute
 ```
 
 ### Input Validation
+
 사용자 입력에 대한 보안 검증:
+
 - 최대 입력 길이 제한 (2000자)
 - 프롬프트 인젝션 패턴 감지
 - 특수 문자 및 제어 문자 정제
 
 ### Error Masking
+
 민감한 정보가 에러 메시지에 노출되지 않도록 마스킹:
+
 - API 키 마스킹 (`sk-***`)
 - IP 주소 마스킹
 - 비밀번호 마스킹
@@ -301,20 +310,21 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 
 ### MCP 도구
 
-| 도구 | 설명 |
-|------|------|
-| `db_test_connection` | 환경변수 DB 연결 테스트 (파라미터 없음) |
-| `db_connect` | 자격증명으로 DB 연결 (connectionId 반환) |
-| `db_disconnect` | 등록된 DB 연결 해제 |
-| `db_list_connections` | 활성 DB 연결 목록 조회 |
-| `nl2sql_schema` | 스키마 조회 (json/prompt/summary 형식) |
-| `nl2sql_query` | 자연어 → SQL 변환 및 선택적 실행 |
-| `cache_status` | 메타데이터 캐시 상태 조회 |
-| `cache_refresh` | 메타데이터 캐시 새로고침 (Docker 재기동 불필요) |
-| `schema_setup` | 메타데이터 테이블 자동 생성 (사용자 확인 필수) |
-| `infer_relationships` | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론 (preview/apply) |
-| `query_pattern_add` | 자주 사용하는 쿼리 패턴 DB 등록 (캐시 자동 갱신) |
-| `query_pattern_search` | 패턴명/설명 키워드로 쿼리 패턴 검색 |
+| 도구                     | 설명                                                           |
+| ------------------------ | -------------------------------------------------------------- |
+| `db_test_connection`     | 환경변수 DB 연결 테스트 (파라미터 없음)                        |
+| `db_connect`             | 자격증명으로 DB 연결 (connectionId 반환)                       |
+| `db_disconnect`          | 등록된 DB 연결 해제                                            |
+| `db_list_connections`    | 활성 DB 연결 목록 조회                                         |
+| `nl2sql_schema`          | 스키마 조회 (json/prompt/summary 형식)                         |
+| `nl2sql_query`           | 자연어 → SQL 변환 및 선택적 실행                               |
+| `cache_status`           | 메타데이터 캐시 상태 조회                                      |
+| `cache_refresh`          | 메타데이터 캐시 새로고침 (Docker 재기동 불필요)                |
+| `schema_setup`           | 메타데이터 테이블 자동 생성 (사용자 확인 필수)                 |
+| `infer_relationships`    | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론 (preview/apply) |
+| `auto_generate_comments` | 미설정 테이블/컬럼 코멘트 AI 자동 생성 (preview/apply)         |
+| `query_pattern_add`      | 자주 사용하는 쿼리 패턴 DB 등록 (캐시 자동 갱신)               |
+| `query_pattern_search`   | 패턴명/설명 키워드로 쿼리 패턴 검색                            |
 
 ### stdio 모드 (Claude Desktop 등)
 
@@ -323,6 +333,7 @@ npm run start:mcp
 ```
 
 Claude Desktop 설정 (`claude_desktop_config.json`):
+
 ```json
 {
   "mcpServers": {
@@ -349,11 +360,13 @@ npm run start:mcp:sse
 ```
 
 환경변수:
+
 - `MCP_TRANSPORT=sse`: SSE 모드 활성화
 - `MCP_PORT=3001`: 서버 포트 (기본: 3001)
 - `MCP_AUTH_TOKEN`: Bearer 인증 토큰 (선택)
 
 엔드포인트:
+
 - `GET /health`: 헬스체크
 - `GET /sse`: SSE 연결
 - `POST /message`: 메시지 수신
@@ -511,23 +524,24 @@ nl2sql_ts/
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|------------|
-| Language | TypeScript 5.x |
-| Runtime | Node.js (ESM) |
-| AI | OpenAI SDK, Anthropic SDK |
-| MCP | @modelcontextprotocol/sdk |
-| Database | Knex.js, pg, mysql2, oracledb |
-| CLI | Commander.js, Inquirer.js |
-| UI | Chalk, Ora |
-| Validation | Zod |
-| Testing | Jest, ts-jest |
-| Linting | ESLint, Prettier |
-| Container | Docker, Docker Compose |
+| Category   | Technology                    |
+| ---------- | ----------------------------- |
+| Language   | TypeScript 5.x                |
+| Runtime    | Node.js (ESM)                 |
+| AI         | OpenAI SDK, Anthropic SDK     |
+| MCP        | @modelcontextprotocol/sdk     |
+| Database   | Knex.js, pg, mysql2, oracledb |
+| CLI        | Commander.js, Inquirer.js     |
+| UI         | Chalk, Ora                    |
+| Validation | Zod                           |
+| Testing    | Jest, ts-jest                 |
+| Linting    | ESLint, Prettier              |
+| Container  | Docker, Docker Compose        |
 
 ## Version History
 
 ### v1.5.1
+
 - 메모리 누수 수정: SSE 모드 이중 SIGINT/SIGTERM 핸들러 제거
 - 메모리 누수 수정: InteractiveSession 시그널 리스너 정상 해제
 - 메모리 누수 수정: 퇴거된 연결의 cacheInitPromise 참조 유지 방지

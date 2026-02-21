@@ -1,6 +1,13 @@
 import OpenAI from 'openai';
 
 export interface AIProvider {
+  /**
+   * 범용 AI 텍스트 생성 메서드
+   * @param systemPrompt - 시스템 프롬프트
+   * @param userPrompt - 사용자 프롬프트
+   * @returns AI 응답 텍스트
+   */
+  generate(systemPrompt: string, userPrompt: string): Promise<string>;
   generateSQL(prompt: string): Promise<string>;
   selectTables(prompt: string): Promise<string>;
 }
@@ -12,6 +19,19 @@ export class OpenAIProvider implements AIProvider {
   constructor(apiKey: string, model?: string) {
     this.client = new OpenAI({ apiKey });
     this.model = model || 'gpt-4o';
+  }
+
+  async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0,
+      max_tokens: 2048,
+    });
+    return response.choices[0]?.message?.content || '';
   }
 
   async generateSQL(prompt: string): Promise<string> {
