@@ -10,7 +10,7 @@
  */
 
 import type { Knex } from 'knex';
-import type { SchemaInfo, TableInfo } from './schema-extractor.js';
+import type { SchemaInfo } from './schema-extractor.js';
 import type {
   MetadataCache,
   GlossaryTerm,
@@ -354,7 +354,7 @@ export function parseCommentResponse(response: string): GeneratedComment[] {
     results.push({
       schema: (item as Record<string, unknown>).schema as string,
       table: (item as Record<string, unknown>).table as string,
-      column: col as string | null | undefined,
+      column: col as string | null,
       comment: (item as Record<string, unknown>).comment as string,
     });
   }
@@ -559,7 +559,7 @@ export async function applyComments(
   oracleDataCharset?: string
 ): Promise<{ applied: number; skipped: number; failed: number }> {
   let applied = 0;
-  let skipped = 0;
+  const skipped = 0;
   let failed = 0;
 
   if (candidates.length === 0) {
