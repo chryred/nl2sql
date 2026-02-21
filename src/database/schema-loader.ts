@@ -14,10 +14,11 @@
  * console.log(schema.tables);
  */
 
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import yaml from 'js-yaml';
+
+
+
+
+import { loadYaml } from './yaml-loader.js';
 import type { Knex } from 'knex';
 import type {
   DatabaseType,
@@ -130,16 +131,7 @@ export class SchemaLoader {
    * @private
    */
   private loadQueries(dbType: DatabaseType): SchemaQueries {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const schemaPath = join(__dirname, 'schemas', `${dbType}.yaml`);
-
-    try {
-      const content = readFileSync(schemaPath, 'utf8');
-      return yaml.load(content) as SchemaQueries;
-    } catch (error) {
-      throw new Error(`Failed to load schema queries for ${dbType}: ${error}`);
-    }
+    return loadYaml<SchemaQueries>(`schemas/${dbType}.yaml`);
   }
 
   /**
