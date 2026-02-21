@@ -7,63 +7,9 @@
  * @module database/metadata/query-loader
  */
 
-import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import yaml from 'js-yaml';
+import { loadYaml } from '../yaml-loader.js';
 import type { MetadataQueryConfig } from './types.js';
 import type { DatabaseType } from '../types.js';
-
-// ESM에서 __dirname 대체
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-/**
- * 메타데이터 쿼리 파일 경로를 반환합니다.
- *
- * @param dbType - 데이터베이스 타입
- * @returns YAML 파일 경로
- */
-function getQueryFilePath(dbType: DatabaseType): string {
-  const filename = `${dbType}-metadata.yaml`;
-
-  // 개발 환경: src/database/schemas/metadata/
-  const devPath = join(__dirname, '..', 'schemas', 'metadata', filename);
-  if (existsSync(devPath)) {
-    return devPath;
-  }
-
-  // 빌드 환경: dist/database/schemas/metadata/
-  const distPath = join(
-    __dirname,
-    '..',
-    '..',
-    '..',
-    'src',
-    'database',
-    'schemas',
-    'metadata',
-    filename
-  );
-  if (existsSync(distPath)) {
-    return distPath;
-  }
-
-  // 프로젝트 루트 기준
-  const rootPath = join(
-    process.cwd(),
-    'src',
-    'database',
-    'schemas',
-    'metadata',
-    filename
-  );
-  if (existsSync(rootPath)) {
-    return rootPath;
-  }
-
-  throw new Error(`Metadata query file not found for database type: ${dbType}`);
-}
 
 /**
  * 데이터베이스 타입별 메타데이터 쿼리를 로드합니다.
@@ -77,25 +23,13 @@ function getQueryFilePath(dbType: DatabaseType): string {
  * console.log(queries.metadataSchema); // 'nl2sql'
  */
 export function loadMetadataQueries(dbType: DatabaseType): MetadataQueryConfig {
-  const filePath = getQueryFilePath(dbType);
-
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    const config = yaml.load(content) as MetadataQueryConfig;
-
-    if (!config || !config.queries) {
-      throw new Error(`Invalid metadata query configuration for ${dbType}`);
-    }
-
-    return config;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to load metadata queries for ${dbType}: ${error.message}`
-      );
-    }
-    throw error;
+  const config = loadYaml<MetadataQueryConfig>(
+    `schemas/metadata/${dbType}-metadata.yaml`
+  );
+  if (!config?.queries) {
+    throw new Error(`Invalid metadata query configuration for ${dbType}`);
   }
+  return config;
 }
 
 /**
