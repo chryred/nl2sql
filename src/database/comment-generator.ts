@@ -697,7 +697,9 @@ export async function applyComments(
       });
     } catch (e) {
       logger.warn(`applyComments: PostgreSQL transaction failed: ${e}`);
-      failed += candidates.length - applied;
+      // 트랜잭션 롤백으로 실제 커밋된 것 없음
+      failed = candidates.length;
+      applied = 0;
     }
     return { applied, skipped: 0, failed };
   }
