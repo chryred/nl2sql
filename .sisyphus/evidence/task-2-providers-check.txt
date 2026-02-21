@@ -1,0 +1,3 @@
+/Users/youwonji/workspace/ai/nl2sql_ts/worktrees/feature-auto-comments/src/ai/providers/anthropic.ts
+/Users/youwonji/workspace/ai/nl2sql_ts/worktrees/feature-auto-comments/src/ai/providers/devx.ts
+/Users/youwonji/workspace/ai/nl2sql_ts/worktrees/feature-auto-comments/src/ai/providers/openai.ts

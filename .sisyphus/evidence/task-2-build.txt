@@ -1,0 +1,4 @@
+
+> nl2sql@1.0.0 build
+> tsc && copyfiles -u 2 src/database/schemas/**/* dist/database/
+

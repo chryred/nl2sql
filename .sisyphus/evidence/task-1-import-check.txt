@@ -1,0 +1,5 @@
+src/mcp/tools/nl2sql-schema.ts:import { buildConfigFromEntry } from '../utils/config-helper.js';
+src/mcp/tools/nl2sql-schema.ts:      const config = buildConfigFromEntry(entry);
+src/mcp/tools/nl2sql-query.ts:import { buildConfigFromEntry } from '../utils/config-helper.js';
+src/mcp/tools/nl2sql-query.ts:      const config = buildConfigFromEntry(entry);
+src/mcp/utils/config-helper.ts:export function buildConfigFromEntry(entry: {
