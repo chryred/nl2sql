@@ -363,6 +363,38 @@ export function parseCommentResponse(response: string): GeneratedComment[] {
   return results;
 }
 
+// ─── 코멘트 길이 제한 설정 ────────────────────────────────────────────────────
+
+const ORACLE_BYTE_LIMIT = 4000;
+
+/** MySQL 문자 수 제한 (테이블/컬럼) */
+const CHAR_LIMITS: Record<DatabaseType, { table: number; column: number } | null> = {
+  postgresql: null,
+  mysql: { table: 2048, column: 1024 },
+  oracle: null,
+};
+
+/**
+ * 바이트 단위로 문자열을 잘라냅니다 (Oracle 전용).
+ */
+function truncateByBytes(
+  comment: string,
+  limit: number
+): { text: string; truncated: boolean } {
+  if (Buffer.byteLength(comment, 'utf8') <= limit) {
+    return { text: comment, truncated: false };
+  }
+  let byteCount = 0;
+  let charIdx = 0;
+  while (charIdx < comment.length) {
+    const charBytes = Buffer.byteLength(comment[charIdx], 'utf8');
+    if (byteCount + charBytes > limit) break;
+    byteCount += charBytes;
+    charIdx++;
+  }
+  return { text: comment.slice(0, charIdx), truncated: true };
+}
+
 /**
  * DBMS별 코멘트 길이 제한을 적용합니다.
  *
@@ -376,38 +408,12 @@ export function truncateComment(
   dbType: DatabaseType,
   isTable: boolean
 ): { text: string; truncated: boolean } {
-  if (dbType === 'postgresql') {
-    // PostgreSQL: 제한 없음
-    return { text: comment, truncated: false };
-  }
-
-  if (dbType === 'mysql') {
-    const limit = isTable ? 2048 : 1024;
-    if (comment.length <= limit) {
-      return { text: comment, truncated: false };
-    }
-    return { text: comment.slice(0, limit), truncated: true };
-  }
-
-  if (dbType === 'oracle') {
-    // Oracle: 4000 바이트 (UTF-8 기준)
-    const ORACLE_BYTE_LIMIT = 4000;
-    if (Buffer.byteLength(comment, 'utf8') <= ORACLE_BYTE_LIMIT) {
-      return { text: comment, truncated: false };
-    }
-    // 바이트 단위로 잘라내기
-    let byteCount = 0;
-    let charIdx = 0;
-    while (charIdx < comment.length) {
-      const charBytes = Buffer.byteLength(comment[charIdx], 'utf8');
-      if (byteCount + charBytes > ORACLE_BYTE_LIMIT) break;
-      byteCount += charBytes;
-      charIdx++;
-    }
-    return { text: comment.slice(0, charIdx), truncated: true };
-  }
-
-  return { text: comment, truncated: false };
+  if (dbType === 'oracle') return truncateByBytes(comment, ORACLE_BYTE_LIMIT);
+  const limits = CHAR_LIMITS[dbType];
+  if (!limits) return { text: comment, truncated: false };
+  const limit = isTable ? limits.table : limits.column;
+  if (comment.length <= limit) return { text: comment, truncated: false };
+  return { text: comment.slice(0, limit), truncated: true };
 }
 
 // ─── DBMS별 SQL 빌더 ──────────────────────────────────────────────────────────
