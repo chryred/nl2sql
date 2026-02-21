@@ -9,6 +9,7 @@
  * @module database/comment-generator
  */
 
+import { loadYaml } from './yaml-loader.js';
 import type { Knex } from 'knex';
 import type { SchemaInfo } from './schema-extractor.js';
 import type {
@@ -411,6 +412,41 @@ export function truncateComment(
 
 // ─── DBMS별 SQL 빌더 ──────────────────────────────────────────────────────────
 
+// ─── 코멘트 SQL 템플릿 로더 ───────────────────────────────────────────────────
+
+/**
+ * YAML에서 로드하는 코멘트 SQL 템플릿 구조
+ */
+interface CommentSQLTemplates {
+  getColumnDef?: { sql: string };
+  commentOnTable: { sql: string };
+  commentOnColumn: { sql: string };
+  commentOnTableWithCharset?: { sql: string };
+  commentOnColumnWithCharset?: { sql: string };
+}
+
+/**
+ * DBMS별 코멘트 SQL 템플릿을 YAML에서 로드합니다 (yaml-loader 캐시 공유).
+ */
+function loadCommentSQL(dbType: DatabaseType): CommentSQLTemplates {
+  return loadYaml<{ comments: CommentSQLTemplates }>(
+    `schemas/${dbType}.yaml`
+  ).comments;
+}
+
+/**
+ * SQL 템플릿의 `{key}` 식별자 플레이스홀더를 치환합니다.
+ */
+function applyTemplate(
+  template: string,
+  vars: Record<string, string>
+): string {
+  return Object.entries(vars).reduce(
+    (sql, [key, val]) => sql.split(`{${key}}`).join(val),
+    template
+  );
+}
+
 /**
  * MySQL 컬럼 정의 정보
  */
@@ -436,11 +472,15 @@ async function getColumnDefinition(
   table: string,
   column: string
 ): Promise<MySQLColumnDef | null> {
-  const sql =
-    'SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA ' +
-    'FROM INFORMATION_SCHEMA.COLUMNS ' +
-    'WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?';
-  const result = await knex.raw(sql, [schema, table, column]);
+  const templates = loadCommentSQL('mysql');
+  if (!templates.getColumnDef) {
+    throw new Error('getColumnDef SQL not found in mysql.yaml');
+  }
+  const result = await knex.raw(templates.getColumnDef.sql, [
+    schema,
+    table,
+    column,
+  ]);
   // MySQL knex.raw returns [rows, fields]
   const rows = result[0] as Array<{
     COLUMN_TYPE: string;
@@ -475,15 +515,16 @@ export function buildCommentSQL(
 ): { sql: string; bindings: unknown[] } {
   const isColumn = candidate.column != null && candidate.column !== '';
   const comment = candidate.comment;
+  const templates = loadCommentSQL(dbType);
 
   if (dbType === 'postgresql') {
-    if (isColumn) {
-      const sql = `COMMENT ON COLUMN "${candidate.schema}"."${candidate.table}"."${candidate.column}" IS ?`;
-      return { sql, bindings: [comment] };
-    } else {
-      const sql = `COMMENT ON TABLE "${candidate.schema}"."${candidate.table}" IS ?`;
-      return { sql, bindings: [comment] };
-    }
+    const tmpl = isColumn ? templates.commentOnColumn : templates.commentOnTable;
+    const sql = applyTemplate(tmpl.sql, {
+      schema: candidate.schema,
+      table: candidate.table,
+      ...(isColumn ? { column: candidate.column as string } : {}),
+    });
+    return { sql, bindings: [comment] };
   }
 
   if (dbType === 'mysql') {
@@ -499,13 +540,21 @@ export function buildCommentSQL(
           ? ` DEFAULT '${mysqlColumnDef.columnDefault.replace(/'/g, "''")}'`
           : '';
       const extraPart = mysqlColumnDef.extra ? ` ${mysqlColumnDef.extra}` : '';
-      const sql =
-        `ALTER TABLE \`${candidate.schema}\`.\`${candidate.table}\`` +
-        ` MODIFY COLUMN \`${candidate.column}\`` +
-        ` ${mysqlColumnDef.columnType} ${nullPart}${defaultPart}${extraPart} COMMENT ?`;
+      const sql = applyTemplate(templates.commentOnColumn.sql, {
+        schema: candidate.schema,
+        table: candidate.table,
+        column: candidate.column as string,
+        columnType: mysqlColumnDef.columnType,
+        nullPart,
+        defaultPart,
+        extraPart,
+      });
       return { sql, bindings: [comment] };
     } else {
-      const sql = `ALTER TABLE \`${candidate.schema}\`.\`${candidate.table}\` COMMENT = ?`;
+      const sql = applyTemplate(templates.commentOnTable.sql, {
+        schema: candidate.schema,
+        table: candidate.table,
+      });
       return { sql, bindings: [comment] };
     }
   }
@@ -518,25 +567,39 @@ export function buildCommentSQL(
       const hexComment = encodeForOracle(comment, oracleDataCharset);
       if (isColumn) {
         const colUpper = (candidate.column as string).toUpperCase();
-        const sql =
-          `BEGIN EXECUTE IMMEDIATE 'COMMENT ON COLUMN "${schemaUpper}"."${tableUpper}"."${colUpper}" IS ''' || ` +
-          `UTL_RAW.CAST_TO_VARCHAR2(HEXTORAW(?)) || ''''; END;`;
+        const tmpl = templates.commentOnColumnWithCharset;
+        if (!tmpl)
+          throw new Error(
+            'commentOnColumnWithCharset SQL not found in oracle.yaml'
+          );
+        const sql = applyTemplate(tmpl.sql, {
+          schema: schemaUpper,
+          table: tableUpper,
+          column: colUpper,
+        });
         return { sql, bindings: [hexComment] };
       } else {
-        const sql =
-          `BEGIN EXECUTE IMMEDIATE 'COMMENT ON TABLE "${schemaUpper}"."${tableUpper}" IS ''' || ` +
-          `UTL_RAW.CAST_TO_VARCHAR2(HEXTORAW(?)) || ''''; END;`;
+        const tmpl = templates.commentOnTableWithCharset;
+        if (!tmpl)
+          throw new Error(
+            'commentOnTableWithCharset SQL not found in oracle.yaml'
+          );
+        const sql = applyTemplate(tmpl.sql, {
+          schema: schemaUpper,
+          table: tableUpper,
+        });
         return { sql, bindings: [hexComment] };
       }
     } else {
-      if (isColumn) {
-        const colUpper = (candidate.column as string).toUpperCase();
-        const sql = `COMMENT ON COLUMN "${schemaUpper}"."${tableUpper}"."${colUpper}" IS ?`;
-        return { sql, bindings: [comment] };
-      } else {
-        const sql = `COMMENT ON TABLE "${schemaUpper}"."${tableUpper}" IS ?`;
-        return { sql, bindings: [comment] };
-      }
+      const tmpl = isColumn ? templates.commentOnColumn : templates.commentOnTable;
+      const sql = applyTemplate(tmpl.sql, {
+        schema: schemaUpper,
+        table: tableUpper,
+        ...(isColumn
+          ? { column: (candidate.column as string).toUpperCase() }
+          : {}),
+      });
+      return { sql, bindings: [comment] };
     }
   }
 
