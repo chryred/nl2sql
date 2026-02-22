@@ -21,6 +21,7 @@ import {
 } from '../../database/connection.js';
 import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
 import { validateNaturalLanguageInput } from '../../utils/input-validator.js';
+import { validateSQL } from '../../ai/response-parser.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
 import { buildConfigFromEntry } from '../utils/config-helper.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
@@ -43,6 +44,12 @@ export const nl2sqlQueryInputSchema = z.object({
     .optional()
     .describe(
       'Connection ID from db_connect (optional, uses default if omitted)'
+    ),
+  sql: z
+    .string()
+    .optional()
+    .describe(
+      'Pre-generated SQL from a previous call. When provided, skips AI generation and executes directly (requires execute: true to run).'
     ),
 });
 
@@ -90,21 +97,40 @@ export async function nl2sqlQuery(
         entry.connectionId
       );
       const config = buildConfigFromEntry(entry);
-      const engine = new NL2SQLEngine(entry.knex, config, {
-        metadataCache,
-      });
+      const engine = new NL2SQLEngine(entry.knex, config, { metadataCache });
 
-      const result = await engine.process(validation.sanitized, input.execute);
+      let sql: string;
+      let executionResult: unknown[] | undefined;
+
+      if (input.sql) {
+        // 이미 생성된 SQL이 있으면 AI 호출 스킵
+        const sqlValidation = validateSQL(input.sql);
+        if (!sqlValidation.valid) {
+          return {
+            success: false,
+            error: `SQL validation failed: ${sqlValidation.error}`,
+          };
+        }
+        sql = input.sql;
+        if (input.execute) {
+          executionResult = await engine.executeSQL(sql);
+        }
+      } else {
+        // 기존 flow: 자연어 → AI → SQL → 선택적 실행
+        const result = await engine.process(validation.sanitized, input.execute);
+        sql = result.sql;
+        executionResult = result.executionResult;
+      }
 
       const output: Nl2sqlQueryOutput = {
         success: true,
-        sql: result.sql,
+        sql,
         executed: input.execute,
       };
 
-      if (input.execute && result.executionResult) {
-        output.results = result.executionResult;
-        output.rowCount = result.executionResult.length;
+      if (input.execute && executionResult) {
+        output.results = executionResult;
+        output.rowCount = executionResult.length;
       }
 
       return output;
@@ -145,20 +171,41 @@ async function nl2sqlQueryLegacy(
     const knex = createConnection(config);
     const engine = new NL2SQLEngine(knex, config);
 
-    const result = await engine.process(
-      validateNaturalLanguageInput(input.query).sanitized,
-      input.execute
-    );
+    let sql: string;
+    let executionResult: unknown[] | undefined;
+
+    if (input.sql) {
+      // 이미 생성된 SQL이 있으면 AI 호출 스킵
+      const sqlValidation = validateSQL(input.sql);
+      if (!sqlValidation.valid) {
+        return {
+          success: false,
+          error: `SQL validation failed: ${sqlValidation.error}`,
+        };
+      }
+      sql = input.sql;
+      if (input.execute) {
+        executionResult = await engine.executeSQL(sql);
+      }
+    } else {
+      // 기존 flow: 자연어 → AI → SQL → 선택적 실행
+      const result = await engine.process(
+        validateNaturalLanguageInput(input.query).sanitized,
+        input.execute
+      );
+      sql = result.sql;
+      executionResult = result.executionResult;
+    }
 
     const output: Nl2sqlQueryOutput = {
       success: true,
-      sql: result.sql,
+      sql,
       executed: input.execute,
     };
 
-    if (input.execute && result.executionResult) {
-      output.results = result.executionResult;
-      output.rowCount = result.executionResult.length;
+    if (input.execute && executionResult) {
+      output.results = executionResult;
+      output.rowCount = executionResult.length;
     }
 
     return output;

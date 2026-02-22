@@ -1,9 +1,6 @@
-// @ts-ignore
 import { DevXSDK } from '@devx/mcp-sdk';
 import type { AIProvider } from './openai.js';
 import { logger } from '../../logger/index.js';
-import { existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
 
 export class DevX implements AIProvider {
   private client: DevXSDK;
@@ -19,6 +16,7 @@ export class DevX implements AIProvider {
     this.agentCode = this.agentCodeMap.get(agentKey || 'playground')!;
   }
 
+  // 테이블/컬럼 주석 추론 모델
   async generate(systemPrompt: string, userPrompt: string): Promise<string> {
     this.agentCode = this.agentCodeMap.get('playground')!;
 
@@ -33,6 +31,7 @@ export class DevX implements AIProvider {
     return textBlock || '';
   }
 
+  // 테이블 리스트 추론
   async selectTables(prompt: string): Promise<string> {
     this.agentCode = this.agentCodeMap.get('nl2sql_rel_table')!;
 
@@ -50,6 +49,7 @@ export class DevX implements AIProvider {
     return textBlock || '[]';
   }
 
+  // 자연어 기반 SQL 생성
   async generateSQL(prompt: string): Promise<string> {
     // const cwd = process.cwd();
     // const filePath = join(cwd, "user_prompt.md");

@@ -14,7 +14,7 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `db_test_connection`     | 환경변수 기반 DB 연결 테스트                            |
 | `db_connect`             | 자격 증명으로 DB 연결 테스트                            |
 | `nl2sql_schema`          | 스키마 조회 (json/prompt/summary)                       |
-| `nl2sql_query`           | 자연어 → SQL 변환 및 실행                               |
+| `nl2sql_query`           | 자연어 → SQL 변환 및 실행 (`sql` 파라미터로 AI 재호출 스킵 가능) |
 | `cache_status`           | 메타데이터 캐시 상태 조회                               |
 | `cache_refresh`          | 메타데이터 캐시 새로고침 (Docker 재기동 불필요)         |
 | `infer_relationships`    | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론          |
@@ -47,6 +47,14 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 
 - SSE 모드 이중 SIGINT/SIGTERM 핸들러 race condition 수정
 - `startSSEServer()` cleanup 함수 반환으로 시그널 핸들러 통합 관리
+
+### v1.6.1
+
+- `nl2sql_query` 도구에 `sql` 옵션 파라미터 추가
+- SQL 확인 후 실행 시 AI 재호출 없이 pre-generated SQL 직접 실행 가능
+- 2-step 흐름: 1차(execute=false)로 SQL 확인 → 2차(execute=true, sql=<이전결과>)로 실행
+- AI 호출 횟수 절감 및 실행 SQL 결정론적 보장 (LLM 비결정성 제거)
+- pre-supplied SQL도 `validateSQL()`로 보안 검증 수행
 
 ### v1.6.0
 
