@@ -14,6 +14,7 @@ import {
 import { buildConfigFromEntry } from '../utils/config-helper.js';
 import { createAIClient } from '../../ai/client-factory.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
+import { extractSchema } from '../../database/schema-extractor.js';
 
 export const autoCommentsInputSchema = z.object({
   connectionId: z
@@ -66,10 +67,7 @@ export async function autoCommentsTool(
     const cache = await connManager.getOrInitCache(entry.connectionId);
     const dbType = entry.params.type;
 
-    const { extractSchema } =
-      await import('../../database/schema-extractor.js');
     const schema = await extractSchema(entry.knex, config);
-
     const targets = filterMissingComments(schema, {
       schema: input.schema,
       tables: input.tables,
