@@ -50,6 +50,14 @@ import {
   autoCommentsInputSchema,
   formatAutoCommentResult,
 } from './tools/auto-comments.js';
+import {
+  queryHistoryList,
+  queryHistoryListInputSchema,
+  queryHistorySearch,
+  queryHistorySearchInputSchema,
+  queryHistoryRegister,
+  queryHistoryRegisterInputSchema,
+} from './tools/query-history.js';
 
 /**
  * MCP 서버 인스턴스를 생성하고 도구들을 등록합니다.
@@ -361,7 +369,64 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 13단계: db_disconnect - 연결 해제 및 리소스 반환
+  // 13단계: query_history_list - 쿼리 이력 목록 조회
+  server.registerTool(
+    'query_history_list',
+    {
+      description:
+        'List nl2sql_query execution history. ' +
+        'Use sortBy=recent (default) for latest queries or sortBy=frequent for most-used queries. ' +
+        'Requires query_history table (run schema_setup first). Optionally specify connectionId.',
+      inputSchema: queryHistoryListInputSchema,
+    },
+    async (args) => {
+      const input = queryHistoryListInputSchema.parse(args);
+      const result = await queryHistoryList(input, connManager);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // 14단계: query_history_search - 쿼리 이력 키워드 검색
+  server.registerTool(
+    'query_history_search',
+    {
+      description:
+        'Search nl2sql_query execution history by keyword. ' +
+        'Matches against natural language query text. ' +
+        'Results sorted by usage_count DESC. Optionally specify connectionId.',
+      inputSchema: queryHistorySearchInputSchema,
+    },
+    async (args) => {
+      const input = queryHistorySearchInputSchema.parse(args);
+      const result = await queryHistorySearch(input, connManager);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // 15단계: query_history_register - 이력 → query_patterns 승격 (북마크)
+  server.registerTool(
+    'query_history_register',
+    {
+      description:
+        'Promote a history entry to query_patterns (bookmark). ' +
+        'The generated SQL becomes a reusable pattern that the AI will use as a hint for future queries. ' +
+        'Cache is automatically invalidated. Optionally specify connectionId.',
+      inputSchema: queryHistoryRegisterInputSchema,
+    },
+    async (args) => {
+      const input = queryHistoryRegisterInputSchema.parse(args);
+      const result = await queryHistoryRegister(input, connManager);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // 16단계: db_disconnect - 연결 해제 및 리소스 반환
   server.registerTool(
     'db_disconnect',
     {

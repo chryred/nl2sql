@@ -232,6 +232,7 @@ NL2SQL은 메타데이터 기반으로 더 정확한 SQL을 생성합니다. `se
 | `query_patterns`      | SQL 쿼리 패턴                  |
 | `pattern_parameters`  | 패턴 파라미터                  |
 | `pattern_keywords`    | 패턴 키워드 매핑               |
+| `query_history`       | 쿼리 실행 이력 (자동 기록)     |
 
 ### 사용 방법
 
@@ -325,6 +326,9 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 | `auto_generate_comments` | 미설정 테이블/컬럼 코멘트 AI 자동 생성 (preview/apply)         |
 | `query_pattern_add`      | 자주 사용하는 쿼리 패턴 DB 등록 (캐시 자동 갱신)               |
 | `query_pattern_search`   | 패턴명/설명 키워드로 쿼리 패턴 검색                            |
+| `query_history_list`     | 쿼리 실행 이력 조회 (recent/frequent 정렬)                      |
+| `query_history_search`   | 자연어 키워드로 이력 검색                                       |
+| `query_history_register` | 이력 항목 → query_patterns 승격 (북마크화)                      |
 
 ### stdio 모드 (Claude Desktop 등)
 

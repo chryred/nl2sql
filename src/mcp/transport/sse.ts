@@ -87,6 +87,8 @@ export function startSSEServer(
 
   // Streamable HTTP 전송 인스턴스 저장소
   const transports = new Map<string, StreamableHTTPServerTransport>();
+  // 세션별 McpServer 인스턴스 저장소 (shutdown 알림 전송용)
+  const mcpServers = new Map<string, McpServer>();
   // 세션별 마지막 활동 시간 추적
   const sessionLastActivity = new Map<string, number>();
 
@@ -167,6 +169,7 @@ export function startSSEServer(
             if (sid) {
               console.log(`[MCP] Session closed: ${sid}`);
               transports.delete(sid);
+              mcpServers.delete(sid);
               sessionLastActivity.delete(sid);
             }
           };
@@ -182,15 +185,20 @@ export function startSSEServer(
           const newSessionId = transport.sessionId;
           if (newSessionId) {
             transports.set(newSessionId, transport);
+            mcpServers.set(newSessionId, mcpServer);
             sessionLastActivity.set(newSessionId, Date.now());
             console.log(`[MCP] New session: ${newSessionId}`);
           }
         } else {
-          // GET 요청이지만 세션이 없는 경우
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(
-            JSON.stringify({ error: 'Session ID required for GET requests' })
-          );
+          // 세션이 없거나 만료된 경우
+          // 410 Gone: 세션이 영구 만료됨 → 클라이언트가 POST로 재초기화해야 함
+          // 400 Bad Request: 세션 ID 없이 GET 요청
+          const code = sessionId ? 410 : 400;
+          const message = sessionId
+            ? 'Session expired. Please reinitialize with POST /mcp.'
+            : 'Session ID required for non-initialization requests.';
+          res.writeHead(code, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: message }));
         }
       } catch (error) {
         console.error('[MCP] Request handling error:', error);
@@ -218,6 +226,8 @@ export function startSSEServer(
     if (authToken) {
       console.log(`[MCP] Authentication: Bearer token required`);
     }
+
+    console.log(`  - POST /mcp     - MCP endpoint (initialize session)`);
   });
 
   // 프로세스 종료 시 서버 정리 (호출자에게 반환, 직접 핸들러 등록 안 함)
@@ -225,6 +235,17 @@ export function startSSEServer(
     console.log('\n[MCP] Shutting down server...');
 
     if (sweepTimer) clearInterval(sweepTimer);
+
+    // 클라이언트에게 서버 종료 알림 전송 (pending 툴 호출 취소 유도)
+    await Promise.all(
+      [...mcpServers.values()].map((s) =>
+        s.server.notification({
+          method: 'notifications/cancelled',
+          params: { requestId: 'server-shutdown', reason: 'Server is shutting down. Please reinitialize.' },
+        }).catch(() => {})
+      )
+    );
+    mcpServers.clear();
 
     // 모든 세션을 닫고 완료 대기
     await Promise.all(
@@ -234,9 +255,15 @@ export function startSSEServer(
     sessionLastActivity.clear();
 
     // keep-alive 연결 포함 모든 연결 강제 종료 후 서버 닫기
+    // 5초 timeout: server.close()가 hang될 경우 강제 진행
     await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn('[MCP] Server close timed out, forcing shutdown');
+        resolve();
+      }, 5000);
       server.closeAllConnections();
       server.close(() => {
+        clearTimeout(timeout);
         console.log('[MCP] Server closed');
         resolve();
       });

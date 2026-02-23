@@ -430,6 +430,57 @@ queries:
       LIMIT ?
     mapping: {}
 
+  # ==========================================================================
+  # query_history_*: 쿼리 이력 관리
+  # ==========================================================================
+  queryHistoryUpsert:
+    sql: |
+      INSERT INTO nl2sql.query_history (
+        query_hash, natural_query, generated_sql, connection_id, executed
+      ) VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        usage_count   = nl2sql.query_history.usage_count + 1,
+        last_used_at  = NOW(),
+        generated_sql = VALUES(generated_sql),
+        executed      = nl2sql.query_history.executed OR VALUES(executed)
+    mapping: {}
+
+  queryHistoryListRecent:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at, created_at
+      FROM nl2sql.query_history
+      ORDER BY last_used_at DESC
+      LIMIT ?
+    mapping: {}
+
+  queryHistoryListFrequent:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at, created_at
+      FROM nl2sql.query_history
+      ORDER BY usage_count DESC, last_used_at DESC
+      LIMIT ?
+    mapping: {}
+
+  queryHistorySearch:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at, created_at
+      FROM nl2sql.query_history
+      WHERE natural_query LIKE ?
+      ORDER BY usage_count DESC, last_used_at DESC
+      LIMIT ?
+    mapping: {}
+
+  queryHistoryGetById:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at
+      FROM nl2sql.query_history
+      WHERE id = ?
+    mapping: {}
+
 # ============================================================================
 # DDL: 메타데이터 테이블 자동 생성 (기본 스키마)
 # ============================================================================
@@ -694,4 +745,21 @@ ddl:
           CONSTRAINT fk_kw_pattern
             FOREIGN KEY (pattern_code) REFERENCES query_patterns(pattern_code)
             ON UPDATE CASCADE ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+
+    - name: query_history
+      createSql: |
+        CREATE TABLE IF NOT EXISTS query_history (
+          id            INT AUTO_INCREMENT PRIMARY KEY,
+          query_hash    VARCHAR(64)  NOT NULL UNIQUE,
+          natural_query TEXT         NOT NULL,
+          generated_sql TEXT,
+          connection_id VARCHAR(100),
+          executed      TINYINT(1)   NOT NULL DEFAULT 0,
+          usage_count   INT          NOT NULL DEFAULT 1,
+          last_used_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_qhist_usage (usage_count),
+          INDEX idx_qhist_last  (last_used_at),
+          INDEX idx_qhist_conn  (connection_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

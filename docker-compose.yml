@@ -43,6 +43,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NL2SQL_MODEL=${NL2SQL_MODEL}
+      - DEVX_API_KEY=${DEVX_API_KEY}
+      - DEVX_HUB_URL=${DEVX_HUB_URL}
 
       # Node Environment
       - NODE_ENV=production

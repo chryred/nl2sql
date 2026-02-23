@@ -465,6 +465,57 @@ queries:
       LIMIT ?
     mapping: {}
 
+  # ==========================================================================
+  # query_history_*: 쿼리 이력 관리
+  # ==========================================================================
+  queryHistoryUpsert:
+    sql: |
+      INSERT INTO nl2sql.query_history (
+        query_hash, natural_query, generated_sql, connection_id, executed
+      ) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT (query_hash) DO UPDATE SET
+        usage_count   = nl2sql.query_history.usage_count + 1,
+        last_used_at  = NOW(),
+        generated_sql = EXCLUDED.generated_sql,
+        executed      = nl2sql.query_history.executed OR EXCLUDED.executed
+    mapping: {}
+
+  queryHistoryListRecent:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at, created_at
+      FROM nl2sql.query_history
+      ORDER BY last_used_at DESC
+      LIMIT ?
+    mapping: {}
+
+  queryHistoryListFrequent:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at, created_at
+      FROM nl2sql.query_history
+      ORDER BY usage_count DESC, last_used_at DESC
+      LIMIT ?
+    mapping: {}
+
+  queryHistorySearch:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at, created_at
+      FROM nl2sql.query_history
+      WHERE natural_query ILIKE ?
+      ORDER BY usage_count DESC, last_used_at DESC
+      LIMIT ?
+    mapping: {}
+
+  queryHistoryGetById:
+    sql: |
+      SELECT id, natural_query, generated_sql, connection_id,
+             executed, usage_count, last_used_at
+      FROM nl2sql.query_history
+      WHERE id = ?
+    mapping: {}
+
 # ============================================================================
 # DDL: 메타데이터 테이블 자동 생성 (기본 스키마)
 # ============================================================================
@@ -738,3 +789,21 @@ ddl:
       indexes:
         - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_kw_lookup ON pattern_keywords(keyword, locale)
         - CREATE INDEX IF NOT EXISTS idx_nl2sql_pattern_kw_pattern ON pattern_keywords(pattern_code)
+
+    - name: query_history
+      createSql: |
+        CREATE TABLE IF NOT EXISTS query_history (
+          id            SERIAL      PRIMARY KEY,
+          query_hash    VARCHAR(64) NOT NULL UNIQUE,
+          natural_query TEXT        NOT NULL,
+          generated_sql TEXT,
+          connection_id VARCHAR(100),
+          executed      BOOLEAN     NOT NULL DEFAULT FALSE,
+          usage_count   INT         NOT NULL DEFAULT 1,
+          last_used_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      indexes:
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_qhist_usage ON query_history(usage_count DESC)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_qhist_last  ON query_history(last_used_at DESC)
+        - CREATE INDEX IF NOT EXISTS idx_nl2sql_qhist_conn  ON query_history(connection_id)

@@ -37,7 +37,6 @@ import {
   initializeMetadataCache,
 } from '../database/metadata/index.js';
 import type { MetadataCache } from '../database/metadata/types.js';
-import { logger } from '../logger/index.js';
 
 /** 2-Pass 테이블 선별 임계값. 이 수 이하이면 기존 single-pass 유지 */
 const TABLE_COUNT_THRESHOLD = 30;

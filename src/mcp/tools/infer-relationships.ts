@@ -101,7 +101,7 @@ export async function inferRelationshipsTool(
         types: input.types,
       }
     );
-
+    
     if (input.mode === 'preview') {
       return {
         success: true,

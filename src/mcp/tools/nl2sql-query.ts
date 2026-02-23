@@ -25,6 +25,7 @@ import { validateSQL } from '../../ai/response-parser.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
 import { buildConfigFromEntry } from '../utils/config-helper.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
+import { saveQueryHistory } from './query-history.js';
 
 /**
  * nl2sql_query 도구의 입력 스키마
@@ -132,6 +133,16 @@ export async function nl2sqlQuery(
         output.results = executionResult;
         output.rowCount = executionResult.length;
       }
+
+      // 쿼리 이력 자동 저장 (fire-and-forget, 실패해도 메인 흐름 영향 없음)
+      // saveQueryHistory(
+      //   entry.knex,
+      //   entry.params.type,
+      //   validation.sanitized,
+      //   sql,
+      //   entry.connectionId,
+      //   input.execute ?? false
+      // ).catch(() => {});
 
       return output;
     } catch (error) {

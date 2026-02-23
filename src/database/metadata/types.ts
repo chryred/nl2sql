@@ -367,6 +367,11 @@ export interface MetadataQueryConfig {
     queryPatternInsert?: MetadataQueryDefinition;
     queryPatternKeywordInsert?: MetadataQueryDefinition;
     queryPatternSearch?: MetadataQueryDefinition;
+    queryHistoryUpsert?: MetadataQueryDefinition;
+    queryHistoryListRecent?: MetadataQueryDefinition;
+    queryHistoryListFrequent?: MetadataQueryDefinition;
+    queryHistorySearch?: MetadataQueryDefinition;
+    queryHistoryGetById?: MetadataQueryDefinition;
   };
   ddl?: DdlConfig;
 }

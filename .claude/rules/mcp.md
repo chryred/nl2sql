@@ -21,6 +21,9 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `auto_generate_comments` | 미설정 테이블/컬럼 코멘트 AI 자동 생성 (preview/apply)  |
 | `query_pattern_add`      | 자주 사용하는 쿼리 패턴 등록 (DB 저장 + 캐시 자동 갱신) |
 | `query_pattern_search`   | 패턴명/설명 키워드로 쿼리 패턴 검색 및 조회             |
+| `query_history_list`     | 쿼리 실행 이력 조회 (`sortBy: recent\|frequent`)         |
+| `query_history_search`   | 자연어 키워드로 쿼리 이력 검색                           |
+| `query_history_register` | 이력 항목을 query_patterns로 승격 (북마크화)             |
 
 ## Transport Modes
 
@@ -42,6 +45,16 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.7.0
+
+- `query_history_list` MCP 도구 추가 (13단계): 실행 이력 조회 (recent/frequent 정렬)
+- `query_history_search` MCP 도구 추가 (14단계): 자연어 키워드로 이력 검색
+- `query_history_register` MCP 도구 추가 (15단계): 이력 → query_patterns 승격 (북마크)
+- `nl2sql_query` 성공 시 `query_history` 테이블에 자동 저장 (fire-and-forget)
+- 동일 자연어 쿼리는 `usage_count` 누적 (SHA256 해시 UPSERT)
+- DDL: `sql/{postgresql,mysql,oracle}/06_query_history.sql`
+- MCP 도구 16단계 체계로 확장 (기존 13단계)
 
 ### v1.5.1
 

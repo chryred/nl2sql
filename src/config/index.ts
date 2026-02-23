@@ -268,6 +268,7 @@ export function getAIConfig(): Config['ai'] {
     openaiApiKey: process.env.OPENAI_API_KEY || configFile.ai?.openaiApiKey,
     anthropicApiKey:
       process.env.ANTHROPIC_API_KEY || configFile.ai?.anthropicApiKey,
+    devxApiKey: process.env.DEVX_API_KEY || configFile.ai?.devxApiKey,
     model: process.env.NL2SQL_MODEL || configFile.ai?.model,
   };
   return configSchema.shape.ai.parse(rawAI);
