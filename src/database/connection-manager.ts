@@ -448,6 +448,7 @@ export class ConnectionManager {
     createdAt: string;
     lastUsedAt: string;
     hasCachedMetadata: boolean;
+    hasCachedSchema: boolean;
   }> {
     return Array.from(this.entries.values()).map((e) => ({
       connectionId: e.connectionId,
@@ -459,6 +460,7 @@ export class ConnectionManager {
       createdAt: e.createdAt.toISOString(),
       lastUsedAt: e.lastUsedAt.toISOString(),
       hasCachedMetadata: e.metadataCache !== null,
+      hasCachedSchema: e.schemaCache !== null,
     }));
   }
 
