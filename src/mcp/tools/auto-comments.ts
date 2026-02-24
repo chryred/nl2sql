@@ -89,7 +89,7 @@ export async function autoCommentsTool(
       const userPrompt = buildCommentPrompt(batch, cache, dbType);
       let response: string;
       try {
-        response = await aiClient.generate(COMMENT_SYSTEM_PROMPT, userPrompt);
+        response = await aiClient.generateComment(COMMENT_SYSTEM_PROMPT, userPrompt);
       } catch (e) {
         continue;
       }

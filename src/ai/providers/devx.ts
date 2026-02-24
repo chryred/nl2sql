@@ -17,9 +17,10 @@ export class DevX implements AIProvider {
     this.agentCode = this.agentCodeMap.get(agentKey || 'playground')!;
   }
 
-  // 테이블/컬럼을 통한 FK정보 생성기
-  async generate(systemPrompt: string, userPrompt: string): Promise<string> {
-    this.agentCode = this.agentCodeMap.get('nl2sql_rel_table')!;
+
+  // 테이블/컬럼 주석 추론 모델
+  async generateComment(systemPrompt: string, userPrompt: string): Promise<string> {
+    this.agentCode = this.agentCodeMap.get('playground')!;
 
     const combinedPrompt = `System: ${systemPrompt}\n\nUser: ${userPrompt}`;
     const response = await this.client.callAgent({
@@ -30,6 +31,20 @@ export class DevX implements AIProvider {
     const textBlock = response.data?.answer;
     logger.info(`generate response: ${textBlock}`);
     return textBlock || '';
+  }
+
+  // FK 관계 추론
+  async generateInferFK(prompt: string): Promise<string> {
+    this.agentCode = this.agentCodeMap.get('nl2sql_infer_fk')!;
+
+    const response = await this.client.callAgent({
+      agentCode: this.agentCode,
+      query: prompt,
+    });
+
+    const textBlock = response.data?.answer;
+    logger.info(`generateInferFK response: ${textBlock}`);
+    return textBlock || '[]';
   }
 
   // 테이블 리스트 추론

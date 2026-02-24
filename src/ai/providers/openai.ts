@@ -7,7 +7,8 @@ export interface AIProvider {
    * @param userPrompt - 사용자 프롬프트
    * @returns AI 응답 텍스트
    */
-  generate(systemPrompt: string, userPrompt: string): Promise<string>;
+  generateInferFK(prompt: string): Promise<string>;
+  generateComment(systemPrompt: string, userPrompt: string): Promise<string>;
   generateSQL(prompt: string): Promise<string>;
   selectTables(prompt: string): Promise<string>;
 }
@@ -21,7 +22,7 @@ export class OpenAIProvider implements AIProvider {
     this.model = model || 'gpt-4o';
   }
 
-  async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+  async generateComment(systemPrompt: string, userPrompt: string): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: [
@@ -31,6 +32,27 @@ export class OpenAIProvider implements AIProvider {
       temperature: 0,
       max_tokens: 2048,
     });
+    return response.choices[0]?.message?.content || '';
+  }
+
+  async generateInferFK(prompt: string): Promise<string> {
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a database schema expert. Analyze the provided table and column definitions, then infer foreign key relationships. Return ONLY a valid JSON array of relationship objects with fields: source_table, source_column, target_table, target_column, confidence (high/medium/low), and reasoning. Do not include any explanation outside the JSON array.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0,
+      max_tokens: 2048,
+    });
+
     return response.choices[0]?.message?.content || '';
   }
 

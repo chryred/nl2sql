@@ -10,7 +10,7 @@ export class AnthropicProvider implements AIProvider {
     this.model = model || 'claude-sonnet-4-20250514';
   }
 
-  async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+  async generateComment(systemPrompt: string, userPrompt: string): Promise<string> {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 2048,
@@ -19,6 +19,24 @@ export class AnthropicProvider implements AIProvider {
         {
           role: 'user',
           content: userPrompt,
+        },
+      ],
+    });
+
+    const textBlock = response.content.find((block) => block.type === 'text');
+    return textBlock && textBlock.type === 'text' ? textBlock.text : '';
+  }
+
+  async generateInferFK(prompt: string): Promise<string> {
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system:
+        'You are a database schema expert. Analyze the provided table and column definitions, then infer foreign key relationships. Return ONLY a valid JSON array of relationship objects with fields: source_table, source_column, target_table, target_column, confidence (high/medium/low), and reasoning. Do not include any explanation outside the JSON array.',
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
         },
       ],
     });
