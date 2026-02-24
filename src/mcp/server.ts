@@ -36,7 +36,6 @@ import { schemaSetup, schemaSetupInputSchema } from './tools/schema-setup.js';
 import {
   inferRelationshipsTool,
   inferRelationshipsInputSchema,
-  formatInferenceResult,
 } from './tools/infer-relationships.js';
 import {
   queryPatternAdd,
@@ -195,15 +194,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
       const input = inferRelationshipsInputSchema.parse(args);
       const result = await inferRelationshipsTool(input, connManager);
 
-      const text = result.result
-        ? formatInferenceResult(result.result) +
-          '\n\n' +
-          JSON.stringify(
-            { success: result.success, message: result.message },
-            null,
-            2
-          )
-        : JSON.stringify(result, null, 2);
+      const text = JSON.stringify(result, null, 2);
 
       return {
         content: [

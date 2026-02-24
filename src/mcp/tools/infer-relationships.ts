@@ -14,11 +14,9 @@ import {
   inferRelationships,
   applyInferredRelationships,
 } from '../../database/metadata/relationship-inference.js';
-import type {
-  InferredRelationship,
-  InferenceResult,
-} from '../../database/metadata/relationship-inference.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
+import { buildConfigFromEntry } from '../utils/config-helper.js';
+import { createAIClient } from '../../ai/client-factory.js';
 
 /**
  * infer_relationships 도구의 입력 스키마
@@ -58,7 +56,6 @@ export interface InferRelationshipsOutput {
   success: boolean;
   message: string;
   connectionId?: string;
-  result?: InferenceResult;
   error?: string;
 }
 
@@ -85,10 +82,24 @@ export async function inferRelationshipsTool(
   }
 
   try {
-    // 메타데이터 캐시 초기화 (네이밍 컨벤션 + 기존 관계 로드)
-    const cache = await connManager.getOrInitCache(entry.connectionId);
-    const namingConventions = cache?.namingConventions ?? [];
-    const existingRelationships = cache?.relationships ?? [];
+    // 메타데이터 캐시 + AI provider + 스키마 준비
+    const config = buildConfigFromEntry(entry);
+    const [cache, schemaTables] = await Promise.all([
+      connManager.getOrInitCache(entry.connectionId),
+      connManager.getOrInitSchemaCache(entry.connectionId, config).then((sc) => sc?.tables ?? []),
+    ]);
+
+    const namingConventions     = cache?.namingConventions     ?? [];
+    const existingRelationships = cache?.relationships         ?? [];
+    const metadata              = cache ?? undefined;
+
+    // AI provider (column_match 타입에 필요)
+    let aiProvider;
+    try {
+      aiProvider = createAIClient(config);
+    } catch {
+      aiProvider = undefined; // AI 설정 없으면 LLM 추론 skip
+    }
 
     // 추론 실행
     const candidates = await inferRelationships(
@@ -99,17 +110,21 @@ export async function inferRelationshipsTool(
       {
         schema: input.schema,
         types: input.types,
+        aiProvider,
+        schemaTables,
+        metadata,
       }
     );
-    
+
+    // 타입별 카운트
+    const ncCount  = candidates.filter((c) => c.inferenceType === 'naming_convention').length;
+    const llmCount = candidates.filter((c) => c.inferenceType === 'column_match').length;
+
     if (input.mode === 'preview') {
       return {
         success: true,
-        message: `Found ${candidates.length} relationship candidates`,
+        message: `Found ${candidates.length} candidates (naming_convention: ${ncCount}, llm: ${llmCount})`,
         connectionId: entry.connectionId,
-        result: {
-          candidates,
-        },
       };
     }
 
@@ -119,11 +134,6 @@ export async function inferRelationshipsTool(
         success: true,
         message: 'No new relationships to apply',
         connectionId: entry.connectionId,
-        result: {
-          candidates: [],
-          applied: 0,
-          skipped: 0,
-        },
       };
     }
 
@@ -134,20 +144,14 @@ export async function inferRelationshipsTool(
       entry.params.oracleDataCharset
     );
 
-    // 캐시 무효화 (새 관계가 추가되었으므로)
     if (applied > 0) {
       connManager.invalidateCache(entry.connectionId);
     }
 
     return {
       success: true,
-      message: `Applied ${applied} relationships, skipped ${skipped}`,
+      message: `Applied ${applied}, skipped ${skipped}`,
       connectionId: entry.connectionId,
-      result: {
-        candidates,
-        applied,
-        skipped,
-      },
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -158,57 +162,4 @@ export async function inferRelationshipsTool(
       error: maskSensitiveInfo(msg),
     };
   }
-}
-
-/**
- * 추론 결과를 텍스트로 포맷합니다.
- */
-export function formatInferenceResult(
-  result: InferenceResult
-): string {
-  const lines: string[] = [];
-
-  if (result.candidates.length === 0) {
-    return 'No relationship candidates found.';
-  }
-
-  // 그룹별 분류
-  const ncCandidates: InferredRelationship[] = [];
-  const cmCandidates: InferredRelationship[] = [];
-
-  for (const c of result.candidates) {
-    if (c.inferenceType === 'naming_convention') {
-      ncCandidates.push(c);
-    } else {
-      cmCandidates.push(c);
-    }
-  }
-
-  if (ncCandidates.length > 0) {
-    lines.push(
-      `\n## Naming Convention (MEDIUM confidence, auto-active): ${ncCandidates.length} candidates`
-    );
-    for (const c of ncCandidates) {
-      lines.push(
-        `  ${c.sourceSchema}.${c.sourceTable}.${c.sourceColumn} → ${c.targetSchema}.${c.targetTable}.${c.targetColumn} [${c.matchedPattern}]`
-      );
-    }
-  }
-
-  if (cmCandidates.length > 0) {
-    lines.push(
-      `\n## Column Match (LOW confidence, manual review): ${cmCandidates.length} candidates`
-    );
-    for (const c of cmCandidates) {
-      lines.push(
-        `  ${c.sourceSchema}.${c.sourceTable}.${c.sourceColumn} → ${c.targetSchema}.${c.targetTable}.${c.targetColumn}`
-      );
-    }
-  }
-
-  if (result.applied !== undefined) {
-    lines.push(`\nApplied: ${result.applied}, Skipped: ${result.skipped}`);
-  }
-
-  return lines.join('\n');
 }

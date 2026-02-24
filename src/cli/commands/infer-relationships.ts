@@ -18,7 +18,6 @@ import {
   initializeMetadataCache,
   getMetadataCache,
 } from '../../database/metadata/index.js';
-import { formatInferenceResult } from '../../mcp/tools/infer-relationships.js';
 
 /**
  * 추론 명령어 옵션
@@ -81,7 +80,21 @@ export async function inferRelationshipsCommand(
     console.log(JSON.stringify({ candidates, mode }, null, 2));
     if (mode === 'preview') return;
   } else {
-    console.log(formatInferenceResult({ candidates }));
+    // 타입별 분류 출력
+    const ncList = candidates.filter((c) => c.inferenceType === 'naming_convention');
+    const cmList = candidates.filter((c) => c.inferenceType === 'column_match');
+    if (ncList.length > 0) {
+      console.log(chalk.bold(`\nNaming Convention (MEDIUM): ${ncList.length}건`));
+      for (const c of ncList) {
+        console.log(`  ${c.sourceTable}.${c.sourceColumn} → ${c.targetTable}.${c.targetColumn} [${c.matchedPattern}]`);
+      }
+    }
+    if (cmList.length > 0) {
+      console.log(chalk.bold(`\nColumn Match (LOW): ${cmList.length}건`));
+      for (const c of cmList) {
+        console.log(`  ${c.sourceTable}.${c.sourceColumn} → ${c.targetTable}.${c.targetColumn}`);
+      }
+    }
   }
 
   if (mode === 'preview') {
