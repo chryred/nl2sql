@@ -94,11 +94,12 @@ export async function nl2sqlQuery(
   if (entry) {
     // ConnectionManager 경로
     try {
-      const metadataCache = await connManager.getOrInitCache(
-        entry.connectionId
-      );
       const config = buildConfigFromEntry(entry);
-      const engine = new NL2SQLEngine(entry.knex, config, { metadataCache });
+      const [metadataCache, schemaCache] = await Promise.all([
+        connManager.getOrInitCache(entry.connectionId),
+        connManager.getOrInitSchemaCache(entry.connectionId, config),
+      ]);
+      const engine = new NL2SQLEngine(entry.knex, config, { metadataCache, schemaCache });
 
       let sql: string;
       let executionResult: unknown[] | undefined;
@@ -135,14 +136,14 @@ export async function nl2sqlQuery(
       }
 
       // 쿼리 이력 자동 저장 (fire-and-forget, 실패해도 메인 흐름 영향 없음)
-      // saveQueryHistory(
-      //   entry.knex,
-      //   entry.params.type,
-      //   validation.sanitized,
-      //   sql,
-      //   entry.connectionId,
-      //   input.execute ?? false
-      // ).catch(() => {});
+      saveQueryHistory(
+        entry.knex,
+        entry.params.type,
+        validation.sanitized,
+        sql,
+        entry.connectionId,
+        input.execute ?? false
+      ).catch(() => {});
 
       return output;
     } catch (error) {
