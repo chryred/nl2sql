@@ -11,10 +11,12 @@
 import { createHash } from 'crypto';
 import knexLib, { type Knex } from 'knex';
 import type { MetadataCache } from './metadata/types.js';
-import type { DatabaseType } from './types.js';
+import type { DatabaseType, SchemaInfo } from './types.js';
 import { loadMetadataCacheIsolated } from './metadata/index.js';
 import { logger } from '../logger/index.js';
 import { createPostProcessResponse } from './charset-converter.js';
+import { extractSchema } from './schema-extractor.js';
+import type { Config } from '../config/index.js';
 
 /**
  * 연결 파라미터
@@ -40,6 +42,8 @@ export interface ConnectionEntry {
   knex: Knex;
   metadataCache: MetadataCache | null;
   cacheInitPromise: Promise<MetadataCache | null> | null;
+  schemaCache: SchemaInfo | null;
+  schemaCacheInitPromise: Promise<SchemaInfo | null> | null;
   createdAt: Date;
   lastUsedAt: Date;
 }
@@ -143,6 +147,8 @@ export class ConnectionManager {
       knex: knexInstance,
       metadataCache: null,
       cacheInitPromise: null,
+      schemaCache: null,
+      schemaCacheInitPromise: null,
       createdAt: new Date(),
       lastUsedAt: new Date(),
     };
@@ -169,6 +175,8 @@ export class ConnectionManager {
       knex: knexInstance,
       metadataCache: null,
       cacheInitPromise: null,
+      schemaCache: null,
+      schemaCacheInitPromise: null,
       createdAt: new Date(),
       lastUsedAt: new Date(),
     };
@@ -293,6 +301,77 @@ export class ConnectionManager {
       entry.metadataCache = null;
       entry.cacheInitPromise = null;
     }
+  }
+
+  /**
+   * 연결의 스키마 캐시를 초기화하거나 기존 캐시를 반환합니다.
+   * 동시 호출을 중복 방지합니다.
+   *
+   * @param connectionId - 연결 식별자
+   * @param config - 애플리케이션 설정 객체
+   * @returns 스키마 캐시 또는 null
+   */
+  async getOrInitSchemaCache(
+    connectionId: string,
+    config: Config
+  ): Promise<SchemaInfo | null> {
+    const entry = this.entries.get(connectionId);
+    if (!entry) return null;
+
+    if (entry.schemaCache) return entry.schemaCache;
+
+    if (entry.schemaCacheInitPromise) return entry.schemaCacheInitPromise;
+
+    entry.schemaCacheInitPromise = extractSchema(entry.knex, config)
+      .then((schema) => {
+        if (this.entries.has(connectionId)) {
+          entry.schemaCache = schema;
+        }
+        entry.schemaCacheInitPromise = null;
+        return schema;
+      })
+      .catch((err) => {
+        entry.schemaCacheInitPromise = null;
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn(
+          `Failed to init schema cache for ${connectionId}: ${msg}`
+        );
+        return null;
+      });
+
+    return entry.schemaCacheInitPromise;
+  }
+
+  /**
+   * 연결의 스키마 캐시를 무효화합니다.
+   *
+   * @param connectionId - 연결 식별자
+   */
+  invalidateSchemaCache(connectionId: string): void {
+    const entry = this.entries.get(connectionId);
+    if (entry) {
+      entry.schemaCache = null;
+      entry.schemaCacheInitPromise = null;
+    }
+  }
+
+  /**
+   * 연결의 스키마 캐시를 새로고침합니다.
+   *
+   * @param connectionId - 연결 식별자
+   * @param config - 애플리케이션 설정 객체
+   * @returns 새로 로드된 스키마 캐시 또는 null
+   */
+  async refreshSchemaCache(
+    connectionId: string,
+    config: Config
+  ): Promise<SchemaInfo | null> {
+    const entry = this.entries.get(connectionId);
+    if (!entry) return null;
+
+    entry.schemaCache = null;
+    entry.schemaCacheInitPromise = null;
+    return this.getOrInitSchemaCache(connectionId, config);
   }
 
   /**
