@@ -392,6 +392,41 @@ export class NL2SQLEngine {
     return result;
   }
 
+
+  /**
+   * 자연어 쿼리로 연관 테이블의 스키마를 반환합니다.
+   *
+   * @description
+   * LLM을 사용해 자연어 설명과 관련된 테이블을 추정하고,
+   * 해당 테이블만 포함된 스키마를 반환합니다.
+   * 테이블 선별에 실패하면 전체 스키마를 반환합니다.
+   *
+   * @param naturalLanguageQuery - 연관 테이블을 추정할 자연어 설명
+   * @returns 선별된 테이블의 스키마 (선별 실패 시 전체 스키마)
+   */
+  async getSchemaByQuery(naturalLanguageQuery: string): Promise<SchemaInfo> {
+    const schema = await this.getSchema();
+    const metadata = await this.getMetadata();
+
+    const tableSummary = formatSchemaSummary(schema);
+    const selectionPrompt = buildTableSelectionPrompt(
+      tableSummary,
+      metadata?.glossaryTerms ?? [],
+      metadata?.glossaryAliases ?? [],
+      metadata?.relationships ?? [],
+      metadata?.queryPatterns ?? [],
+      metadata?.patternKeywords ?? [],
+      naturalLanguageQuery
+    );
+
+    const selectionResponse = await this.aiClient.selectTables(selectionPrompt);
+    const selectedTables = parseSelectedTables(selectionResponse);
+
+    return selectedTables.length > 0
+      ? filterSchemaByTables(schema, selectedTables)
+      : schema;
+  }
+
   /**
    * 스키마 캐시를 초기화합니다.
    *
