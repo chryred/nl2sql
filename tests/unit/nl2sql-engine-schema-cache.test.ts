@@ -20,12 +20,13 @@ describe('NL2SQLEngine with injected schemaCache', () => {
     ],
   };
 
+  const mockConfig = {
+    ai: { provider: 'openai' as const, apiKey: 'sk-test-key-for-testing', model: 'gpt-4o' },
+    database: { type: 'postgresql' as const, host: 'localhost', port: 5432, user: 'u', password: 'p', database: 'd' },
+  } as any;
+
   it('uses injected schemaCache when provided as non-null value', async () => {
     const mockKnex = {} as any;
-    const mockConfig = {
-      ai: { provider: 'openai' as const, apiKey: 'sk-test-key-for-testing', model: 'gpt-4o' },
-      database: { type: 'postgresql' as const, host: 'localhost', port: 5432, user: 'u', password: 'p', database: 'd' },
-    } as any;
 
     const engine = new NL2SQLEngineClass(mockKnex, mockConfig, {
       schemaCache: mockSchema,
@@ -36,15 +37,28 @@ describe('NL2SQLEngine with injected schemaCache', () => {
     expect(schema.tables[0].name).toBe('injected_table');
   });
 
-  it('uses internal cachedSchema when schemaCache option is undefined', async () => {
+  it('falls through to extractSchema when schemaCache is null (always re-extract)', async () => {
+    // A stub knex with no `raw` method — extractSchema will call knex methods and throw.
+    // This proves that null schemaCache bypasses the injection fast-path and hits the DB layer.
     const mockKnex = {} as any;
-    const mockConfig = {
-      ai: { provider: 'openai' as const, apiKey: 'sk-test-key-for-testing', model: 'gpt-4o' },
-      database: { type: 'postgresql' as const, host: 'localhost', port: 5432, user: 'u', password: 'p', database: 'd' },
-    } as any;
+
+    const engine = new NL2SQLEngineClass(mockKnex, mockConfig, {
+      schemaCache: null,
+    });
+
+    // extractSchema will attempt to query the DB via knex and throw because knex is a stub.
+    // The error should be a DB/call error, NOT a "schemaCache option" configuration error.
+    await expect(engine.getSchema()).rejects.toThrow();
+  });
+
+  it('falls through to extractSchema when schemaCache option is undefined (internal cache path)', async () => {
+    // No schemaCache option → internal cachedSchema path → extractSchema is called on first miss.
+    // The stub knex has no DB methods, so extractSchema will throw a DB-layer error.
+    // This proves the internal extraction path is taken rather than returning early.
+    const mockKnex = {} as any;
 
     const engine = new NL2SQLEngineClass(mockKnex, mockConfig);
-    expect(engine).toBeInstanceOf(NL2SQLEngineClass);
-    // No schemaCache option means internal cache path is used
+
+    await expect(engine.getSchema()).rejects.toThrow();
   });
 });

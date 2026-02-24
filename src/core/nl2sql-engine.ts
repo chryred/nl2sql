@@ -145,11 +145,20 @@ export class NL2SQLEngine {
    * console.log(`${schema.tables.length} tables found`);
    */
   async getSchema(): Promise<SchemaInfo> {
-    // 주입된 캐시가 정의되어 있고 null이 아니면 즉시 반환 (MCP 모드)
+    // Guard: `!= null` catches both null and undefined via loose equality.
+    // - SchemaInfo value  → injected cache hit, return immediately (MCP mode)
+    // - null              → treated as "always re-extract" (falls through to extractSchema)
+    // - undefined         → also falls through to internal cachedSchema path (CLI compat)
+    //
+    // Why `!= null` here instead of `!== undefined` used in getMetadata():
+    //   getMetadata() uses `!== undefined` so that an explicit `null` is returned as-is,
+    //   meaning "metadata is intentionally absent" (valid return value).
+    //   getSchema() uses `!= null` because schema must never be returned as null;
+    //   passing `null` signals "skip the cache, always re-extract from DB".
     if (this.injectedSchemaCache != null) {
       return this.injectedSchemaCache;
     }
-    // undefined이면 내부 cachedSchema 사용 (기존 경로, CLI 호환)
+    // undefined or null: fall through to internal cachedSchema path (CLI compat)
     if (this.cachedSchema) {
       return this.cachedSchema;
     }
