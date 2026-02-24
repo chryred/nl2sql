@@ -26,6 +26,7 @@ export interface DbListOutput {
   count: number;
   connections: Array<{
     connectionId: string;
+    systemName: string;
     type: string;
     host: string;
     port: number;
@@ -34,6 +35,7 @@ export interface DbListOutput {
     createdAt: string;
     lastUsedAt: string;
     hasCachedMetadata: boolean;
+    hasCachedSchema: boolean;
   }>;
 }
 

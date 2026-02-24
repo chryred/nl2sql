@@ -54,6 +54,7 @@ async function main(): Promise<void> {
     if (hasDatabaseConfig) {
       validateConfig(config);
       connManager.registerDefault({
+        systemName: 'default',
         type: config.database.type,
         host: config.database.host,
         port: config.database.port,

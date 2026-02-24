@@ -16,6 +16,7 @@ import type { ConnectionManager } from '../../database/connection-manager.js';
  * db_connect 도구의 입력 스키마
  */
 export const dbConnectInputSchema = z.object({
+  systemName: z.string().min(1).describe('System name to identify this connection (e.g., 고객경험, 주문관리)'),
   type: z.enum(['postgresql', 'mysql', 'oracle']).describe('Database type'),
   host: z.string().min(1).describe('Database host'),
   port: z
@@ -46,6 +47,7 @@ export interface DbConnectOutput {
   message: string;
   connectionId?: string;
   details?: {
+    systemName: string;
     type: string;
     host: string;
     port: number;
@@ -82,6 +84,7 @@ export async function dbConnect(
 
   // ConnectionManager에 등록 (기존 연결이면 생존 테스트 포함)
   const { connectionId, isNew } = await connManager.register({
+    systemName: input.systemName,
     type: input.type,
     host: input.host,
     port,
@@ -99,6 +102,7 @@ export async function dbConnect(
       message: 'Existing connection verified and reused.',
       connectionId,
       details: {
+        systemName: input.systemName,
         type: input.type,
         host: input.host,
         port,
@@ -119,6 +123,7 @@ export async function dbConnect(
           'Database connection registered successfully. Use connectionId in subsequent calls.',
         connectionId,
         details: {
+          systemName: input.systemName,
           type: input.type,
           host: input.host,
           port,
@@ -136,6 +141,7 @@ export async function dbConnect(
       success: false,
       message: `Connection failed: ${maskSensitiveInfo(message)}`,
       details: {
+        systemName: input.systemName,
         type: input.type,
         host: input.host,
         port,

@@ -22,6 +22,7 @@ import type { Config } from '../config/index.js';
  * 연결 파라미터
  */
 export interface ConnectionParams {
+  systemName: string;
   type: DatabaseType;
   host: string;
   port: number;
@@ -440,6 +441,7 @@ export class ConnectionManager {
    */
   listConnections(): Array<{
     connectionId: string;
+    systemName: string;
     type: string;
     host: string;
     port: number;
@@ -452,6 +454,7 @@ export class ConnectionManager {
   }> {
     return Array.from(this.entries.values()).map((e) => ({
       connectionId: e.connectionId,
+      systemName: e.params.systemName,
       type: e.params.type,
       host: e.params.host,
       port: e.params.port,
