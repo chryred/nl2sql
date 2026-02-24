@@ -164,7 +164,9 @@ function formatMetadataForPrompt(
       const joinType = rel.joinHint
         ? ` (${rel.joinHint} JOIN recommended)`
         : '';
-      return `  - ${rel.sourceTable}.${rel.sourceColumn} -> ${rel.targetTable}.${rel.targetColumn} (${rel.relationshipType})${joinType}`;
+      const srcPrefix = rel.sourceSchema ? `${rel.sourceSchema}.` : '';
+      const tgtPrefix = rel.targetSchema ? `${rel.targetSchema}.` : '';
+      return `  - ${srcPrefix}${rel.sourceTable}.${rel.sourceColumn} -> ${tgtPrefix}${rel.targetTable}.${rel.targetColumn} (${rel.relationshipType})${joinType}`;
     });
     sections.push(`Table Relationships:\n${relationshipLines.join('\n')}`);
   }
