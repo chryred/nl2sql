@@ -285,6 +285,7 @@ export class NL2SQLEngine {
       naturalLanguageQuery,
       dbType: this.config.database.type,
       metadata: finalMetadata,
+      oracleDataCharset: this.config.database.oracleDataCharset,
     });
 
     const response = await this.aiClient.generateSQL(prompt);
