@@ -27,25 +27,36 @@ import type { ConnectionManager } from '../../database/connection-manager.js';
 /**
  * nl2sql_schema 도구의 입력 스키마
  */
-export const nl2sqlSchemaInputSchema = z.object({
-  tables: z
-    .array(z.string())
-    .describe(
-      'Table names to retrieve schema for (case-insensitive). e.g. ["vip_grp_cust_inf", "vip_grp_inf"]'
-    ),
-  format: z
-    .enum(['json', 'prompt', 'summary'])
-    .default('json')
-    .describe(
-      'Output format: json (full schema), prompt (AI-friendly text), summary (table list)'
-    ),
-  connectionId: z
-    .string()
-    .optional()
-    .describe(
-      'Connection ID from db_connect (optional, uses default if omitted)'
-    ),
-});
+export const nl2sqlSchemaInputSchema = z
+  .object({
+    tables: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Table names to retrieve schema for (case-insensitive). e.g. ["vip_grp_cust_inf"]. Optional if query is provided.'
+      ),
+    query: z
+      .string()
+      .optional()
+      .describe(
+        'Natural language description to infer related tables (e.g. "vip그룹고객조회"). Optional if tables is provided.'
+      ),
+    format: z
+      .enum(['json', 'prompt', 'summary'])
+      .default('json')
+      .describe(
+        'Output format: json (full schema), prompt (AI-friendly text), summary (table list)'
+      ),
+    connectionId: z
+      .string()
+      .optional()
+      .describe(
+        'Connection ID from db_connect (optional, uses default if omitted)'
+      ),
+  })
+  .refine((data) => (data.tables && data.tables.length > 0) || data.query, {
+    message: 'Either tables (non-empty array) or query must be provided',
+  });
 
 export type Nl2sqlSchemaInput = z.infer<typeof nl2sqlSchemaInputSchema>;
 
@@ -88,7 +99,8 @@ function formatSchemaAsSummary(schema: SchemaInfo): SchemaSummary {
 /**
  * 지정된 테이블명(대소문자 무시)으로 스키마를 필터링합니다.
  */
-function filterSchemaByTables(schema: SchemaInfo, tables: string[]): SchemaInfo {
+function filterSchemaByTables(schema: SchemaInfo, tables: string[] | undefined): SchemaInfo {
+  if (!tables || tables.length === 0) return schema;
   const lowerTables = tables.map((t) => t.toLowerCase());
   return {
     ...schema,
