@@ -15,6 +15,11 @@ import type { ConnectionManager } from '../../database/connection-manager.js';
 import { loadMetadataQueries } from '../../database/metadata/query-loader.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
 import type { DatabaseType } from '../../database/types.js';
+import {
+  encodeForOracle,
+  resolveOracleTextBind,
+  resolveOracleNaturalQuerySelect,
+} from '../../database/charset-converter.js';
 
 // ============================================================================
 // 입력 스키마
@@ -146,7 +151,8 @@ export async function saveQueryHistory(
   naturalQuery: string,
   generatedSql: string,
   connectionId: string,
-  executed: boolean
+  executed: boolean,
+  oracleDataCharset?: string
 ): Promise<void> {
   const config = loadMetadataQueries(dbType);
   const def = config.queries.queryHistoryUpsert;
@@ -156,24 +162,29 @@ export async function saveQueryHistory(
   const execVal =
     dbType === 'mysql' || dbType === 'oracle' ? (executed ? 1 : 0) : executed;
 
+  let sql = def.sql;
   let bindings: unknown[];
   if (dbType === 'oracle') {
+    sql = resolveOracleTextBind(sql, oracleDataCharset);
+    const encodedNaturalQuery = oracleDataCharset
+      ? encodeForOracle(naturalQuery, oracleDataCharset)
+      : naturalQuery;
     // MERGE: ON(1) + MATCHED SET(3) + NOT MATCHED INSERT(5)
     bindings = [
-      hash, // ON: query_hash
-      generatedSql, // MATCHED: generated_sql
-      execVal, // MATCHED: executed
-      hash, // NOT MATCHED: query_hash
-      naturalQuery, // NOT MATCHED: natural_query
-      generatedSql, // NOT MATCHED: generated_sql
-      connectionId, // NOT MATCHED: connection_id
-      execVal, // NOT MATCHED: executed
+      hash,                 // ON: query_hash
+      generatedSql,         // MATCHED: generated_sql
+      execVal,              // MATCHED: executed
+      hash,                 // NOT MATCHED: query_hash
+      encodedNaturalQuery,  // NOT MATCHED: natural_query ({{BIND_TEXT}} 위치)
+      generatedSql,         // NOT MATCHED: generated_sql
+      connectionId,         // NOT MATCHED: connection_id
+      execVal,              // NOT MATCHED: executed
     ];
   } else {
     bindings = [hash, naturalQuery, generatedSql, connectionId, execVal];
   }
 
-  await knex.raw(def.sql, bindings);
+  await knex.raw(sql, bindings);
 }
 
 // ============================================================================
@@ -209,7 +220,9 @@ export async function queryHistoryList(
       };
     }
 
-    const result = await entry.knex.raw(def.sql, [input.limit]);
+    const charset = entry.params.type === 'oracle' ? entry.params.oracleDataCharset : undefined;
+    const rawSql = resolveOracleNaturalQuerySelect(def.sql, charset);
+    const result = await entry.knex.raw(rawSql, [input.limit]);
     const rows = (result.rows ?? result[0] ?? []) as HistoryEntry[];
 
     return {
@@ -255,7 +268,9 @@ export async function queryHistorySearch(
     }
 
     const keyword = `%${input.keyword}%`;
-    const result = await entry.knex.raw(def.sql, [keyword, input.limit]);
+    const charset = entry.params.type === 'oracle' ? entry.params.oracleDataCharset : undefined;
+    const rawSql = resolveOracleNaturalQuerySelect(def.sql, charset);
+    const result = await entry.knex.raw(rawSql, [keyword, input.limit]);
     const rows = (result.rows ?? result[0] ?? []) as HistoryEntry[];
 
     return {
@@ -304,7 +319,9 @@ export async function queryHistoryRegister(
 
   let historyRow: HistoryEntry | undefined;
   try {
-    const result = await entry.knex.raw(getByIdDef.sql, [input.historyId]);
+    const charset = dbType === 'oracle' ? entry.params.oracleDataCharset : undefined;
+    const getByIdSql = resolveOracleNaturalQuerySelect(getByIdDef.sql, charset);
+    const result = await entry.knex.raw(getByIdSql, [input.historyId]);
     const rows = (result.rows ?? result[0] ?? []) as HistoryEntry[];
     historyRow = rows[0];
   } catch (error) {
@@ -352,19 +369,35 @@ export async function queryHistoryRegister(
   try {
     let bindings: unknown[];
     if (dbType === 'oracle') {
+      const charset = entry.params.oracleDataCharset;
+      const insertSql = resolveOracleTextBind(insertDef.sql, charset);
+      const encodedPatternName = charset
+        ? encodeForOracle(input.patternName, charset)
+        : input.patternName;
+      const encodedDescription = charset
+        ? encodeForOracle(input.description, charset)
+        : input.description;
+      const rawNaturalQuery = historyRow.natural_query != null
+        ? String(historyRow.natural_query)
+        : null;
+      const encodedNaturalQuery =
+        rawNaturalQuery && charset
+          ? encodeForOracle(rawNaturalQuery, charset)
+          : rawNaturalQuery;
+
       // MERGE: ON(1) + MATCHED SET(8) + NOT MATCHED INSERT(11)
       bindings = [
         patternCode,
-        input.patternName,
+        encodedPatternName,       // pattern_name MATCHED
         input.category ?? null,
         historyRow.generated_sql,
         null,
         null,
         null,
-        input.description,
-        historyRow.natural_query,
+        encodedDescription,       // description MATCHED
+        encodedNaturalQuery,      // example_input MATCHED (natural_query를 example로 사용)
         patternCode,
-        input.patternName,
+        encodedPatternName,       // pattern_name NOT MATCHED
         input.category ?? null,
         historyRow.generated_sql,
         null,
@@ -372,9 +405,10 @@ export async function queryHistoryRegister(
         null,
         70,
         100,
-        input.description,
-        historyRow.natural_query,
+        encodedDescription,       // description NOT MATCHED
+        encodedNaturalQuery,      // example_input NOT MATCHED
       ];
+      await entry.knex.raw(insertSql, bindings);
     } else {
       bindings = [
         patternCode,
@@ -389,19 +423,24 @@ export async function queryHistoryRegister(
         input.description,
         historyRow.natural_query,
       ];
+      await entry.knex.raw(insertDef.sql, bindings);
     }
-
-    await entry.knex.raw(insertDef.sql, bindings);
 
     // 키워드 등록
     const kwDef = config.queries.queryPatternKeywordInsert;
     if (kwDef && input.keywords && input.keywords.length > 0) {
+      const charset = dbType === 'oracle' ? entry.params.oracleDataCharset : undefined;
       for (const kw of input.keywords) {
-        const kwBindings =
-          dbType === 'oracle'
-            ? [patternCode, kw, patternCode, kw]
-            : [patternCode, kw];
-        await entry.knex.raw(kwDef.sql, kwBindings);
+        const kwSql = dbType === 'oracle'
+          ? resolveOracleTextBind(kwDef.sql, charset)
+          : kwDef.sql;
+        const encodedKw = dbType === 'oracle' && charset
+          ? encodeForOracle(kw, charset)
+          : kw;
+        const kwBindings = dbType === 'oracle'
+          ? [patternCode, encodedKw, patternCode, encodedKw]
+          : [patternCode, kw];
+        await entry.knex.raw(kwSql, kwBindings);
       }
     }
 
