@@ -49,6 +49,8 @@ export interface PromptOptions {
   dbType: DatabaseType;
   /** 메타데이터 캐시 (선택적) */
   metadata?: MetadataCache | null;
+  /** Oracle 데이터 캐릭터셋 (US7ASCII DB에서 한글 변환용, 예: ms949) */
+  oracleDataCharset?: string;
 }
 
 /**
@@ -59,10 +61,11 @@ export interface PromptOptions {
  * AI 모델이 해당 데이터베이스에 맞는 올바른 SQL을 생성할 수 있도록 합니다.
  *
  * @param dbType - 데이터베이스 타입
+ * @param oracleDataCharset - Oracle 데이터 캐릭터셋 (한글 처리 힌트용)
  * @returns 데이터베이스별 SQL 가이드 텍스트
  * @private
  */
-function getDbSpecificNotes(dbType: DatabaseType): string {
+function getDbSpecificNotes(dbType: DatabaseType, oracleDataCharset?: string): string {
   switch (dbType) {
     case 'mysql':
       return `- Use MySQL-specific syntax (backticks for identifiers, LIMIT syntax, etc.)
@@ -70,14 +73,18 @@ function getDbSpecificNotes(dbType: DatabaseType): string {
 - Use LIMIT for result set restriction
 - String comparison is case-insensitive by default`;
 
-    case 'oracle':
+    case 'oracle': {
+      const charsetNote = oracleDataCharset
+        ? `\n- Character encoding: DB stores data as ${oracleDataCharset} (not UTF-8). For VARCHAR2 columns that may contain Korean text, ALWAYS wrap with UTL_RAW.CAST_TO_RAW(column) AS column_name in SELECT. Example: UTL_RAW.CAST_TO_RAW(customer_name) AS customer_name`
+        : '';
       return `- Use Oracle-specific syntax (double quotes for case-sensitive identifiers)
 - Use appropriate Oracle functions (e.g., NVL, TO_CHAR, TO_DATE, DECODE, etc.)
 - Use FETCH FIRST n ROWS ONLY for limiting results (Oracle 12c+) or ROWNUM for older versions
 - Use || for string concatenation
 - NULL handling: NVL(column, default) or COALESCE
 - Date literals: DATE 'YYYY-MM-DD' or TO_DATE('YYYY-MM-DD', 'YYYY-MM-DD')
-- Use DUAL for queries without a table (e.g., SELECT SYSDATE FROM DUAL)`;
+- Use DUAL for queries without a table (e.g., SELECT SYSDATE FROM DUAL)${charsetNote}`;
+    }
 
     default: // postgresql
       return `- Use PostgreSQL-specific syntax (double quotes for identifiers if needed)
@@ -281,9 +288,9 @@ function formatMetadataForPrompt(
  * const sql = await aiClient.generateSQL(prompt);
  */
 export function buildPrompt(options: PromptOptions): string {
-  const { tables, naturalLanguageQuery, dbType, metadata } = options;
+  const { tables, naturalLanguageQuery, dbType, metadata, oracleDataCharset } = options;
   const schemaText = formatSchemaForPrompt(tables);
-  const dbSpecificNotes = getDbSpecificNotes(dbType);
+  const dbSpecificNotes = getDbSpecificNotes(dbType, oracleDataCharset);
   const performanceGuidelines = getPerformanceGuidelines(tables);
   const safetyGuidelines = getQuerySafetyGuidelines();
 
@@ -292,10 +299,14 @@ export function buildPrompt(options: PromptOptions): string {
     ? formatMetadataForPrompt(metadata, dbType)
     : '';
 
+  const dbTypeLabel = oracleDataCharset
+    ? `Database type: ${dbType.toUpperCase()} (data charset: ${oracleDataCharset})`
+    : `Database type: ${dbType.toUpperCase()}`;
+
   const sections = [
     `Given the following database schema:`,
     schemaText,
-    `Database type: ${dbType.toUpperCase()}`,
+    dbTypeLabel,
     `Guidelines:\n${dbSpecificNotes}`,
     performanceGuidelines,
     safetyGuidelines,
