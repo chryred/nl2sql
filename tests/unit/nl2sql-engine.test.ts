@@ -128,3 +128,4 @@ describe('filterMetadataByTables', () => {
     expect(result!.glossaryTerms).toHaveLength(1);
   });
 });
+

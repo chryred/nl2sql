@@ -86,6 +86,11 @@ export interface NL2SQLEngineOptions {
   useMetadata?: boolean;
   /** 주입된 메타데이터 캐시 (ConnectionManager용). undefined=전역싱글톤 사용, null=메타데이터 없음 */
   metadataCache?: MetadataCache | null;
+  /** 주입된 스키마 캐시 (ConnectionManager용).
+   * undefined=내부 cachedSchema 사용 (CLI 호환),
+   * null=항상 재추출,
+   * SchemaInfo=주입된 캐시 즉시 반환 (MCP 모드) */
+  schemaCache?: SchemaInfo | null;
 }
 
 export class NL2SQLEngine {
@@ -107,6 +112,9 @@ export class NL2SQLEngine {
   /** 주입된 메타데이터 캐시 (undefined=전역싱글톤 사용) */
   private injectedCache?: MetadataCache | null;
 
+  /** 주입된 스키마 캐시 (undefined=내부 캐시 경로) */
+  private injectedSchemaCache?: SchemaInfo | null;
+
   /**
    * NL2SQLEngine 생성자
    *
@@ -120,6 +128,7 @@ export class NL2SQLEngine {
     this.aiClient = createAIClient(config);
     this.useMetadata = options.useMetadata ?? true;
     this.injectedCache = options.metadataCache;
+    this.injectedSchemaCache = options.schemaCache;
   }
 
   /**
@@ -136,11 +145,15 @@ export class NL2SQLEngine {
    * console.log(`${schema.tables.length} tables found`);
    */
   async getSchema(): Promise<SchemaInfo> {
+    // 주입된 캐시가 정의되어 있고 null이 아니면 즉시 반환 (MCP 모드)
+    if (this.injectedSchemaCache != null) {
+      return this.injectedSchemaCache;
+    }
+    // undefined이면 내부 cachedSchema 사용 (기존 경로, CLI 호환)
     if (this.cachedSchema) {
       return this.cachedSchema;
     }
     this.cachedSchema = await extractSchema(this.knex, this.config);
-    //this.cachedSchema = {tables:[], recentQueries:[]}; // 임시 처리
     return this.cachedSchema;
   }
 
