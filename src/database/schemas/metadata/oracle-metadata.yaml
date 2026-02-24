@@ -400,21 +400,21 @@ queries:
       USING (SELECT ? AS pattern_code FROM DUAL) src
       ON (tgt.pattern_code = src.pattern_code)
       WHEN MATCHED THEN UPDATE SET
-        pattern_name        = ?,
+        pattern_name        = {{BIND_TEXT}},
         category            = ?,
         sql_template        = ?,
         sql_template_mysql  = ?,
         sql_template_oracle = ?,
         applicable_tables   = ?,
-        description         = ?,
-        example_input       = ?,
+        description         = {{BIND_TEXT}},
+        example_input       = {{BIND_TEXT}},
         updated_at          = SYSTIMESTAMP
       WHEN NOT MATCHED THEN INSERT (
         pattern_code, pattern_name, category,
         sql_template, sql_template_mysql, sql_template_oracle,
         applicable_tables, match_score_threshold, priority,
         description, example_input, is_active, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'mcp_user')
+      ) VALUES (?, {{BIND_TEXT}}, ?, ?, ?, ?, ?, ?, ?, {{BIND_TEXT}}, {{BIND_TEXT}}, 1, 'mcp_user')
     mapping: {}
 
   # ==========================================================================
@@ -423,11 +423,11 @@ queries:
   queryPatternKeywordInsert:
     sql: |
       MERGE INTO pattern_keywords tgt
-      USING (SELECT ? AS pattern_code, ? AS keyword FROM DUAL) src
+      USING (SELECT ? AS pattern_code, {{BIND_TEXT}} AS keyword FROM DUAL) src
       ON (tgt.pattern_code = src.pattern_code AND tgt.keyword = src.keyword)
       WHEN NOT MATCHED THEN INSERT (
         pattern_code, keyword, locale, weight, match_type, is_required
-      ) VALUES (?, ?, 'ko', 10, 'CONTAINS', 0)
+      ) VALUES (?, {{BIND_TEXT}}, 'ko', 10, 'CONTAINS', 0)
     mapping: {}
 
   # ==========================================================================
@@ -465,7 +465,7 @@ queries:
         executed      = GREATEST(tgt.executed, ?)
       WHEN NOT MATCHED THEN INSERT (
         query_hash, natural_query, generated_sql, connection_id, executed
-      ) VALUES (?, ?, ?, ?, ?)
+      ) VALUES (?, {{BIND_TEXT}}, ?, ?, ?)
     mapping: {}
 
   queryHistoryListRecent:
