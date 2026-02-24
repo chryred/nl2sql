@@ -13,7 +13,7 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | ------------------------ | ------------------------------------------------------- |
 | `db_test_connection`     | 환경변수 기반 DB 연결 테스트                            |
 | `db_connect`             | 자격 증명으로 DB 연결 테스트                            |
-| `nl2sql_schema`          | 스키마 조회 (json/prompt/summary)                       |
+| `nl2sql_schema`          | 스키마 조회 (json/prompt/summary). `tables`(테이블명 배열) 또는 `query`(자연어)로 조회 가능 |
 | `nl2sql_query`           | 자연어 → SQL 변환 및 실행 (`sql` 파라미터로 AI 재호출 스킵 가능) |
 | `cache_status`           | 메타데이터 캐시 상태 조회                               |
 | `cache_refresh`          | 메타데이터 + 스키마 캐시 새로고침 (Docker 재기동 불필요) |
@@ -45,6 +45,13 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.9.0
+
+- `nl2sql_schema`: 자연어 쿼리(`query` 파라미터)로 연관 테이블 스키마 자동 조회
+- `tables` 파라미터 optional로 변경 — `query`만으로 호출 가능
+- `NL2SQLEngine.getSchemaByQuery()` 신규 메서드 추가 (LLM 기반 테이블 선별)
+- 예시: `{ query: "vip그룹고객조회" }` → LLM이 관련 테이블 추정 후 스키마 반환
 
 ### v1.8.0
 

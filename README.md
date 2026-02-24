@@ -317,7 +317,7 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 | `db_connect`             | 자격증명으로 DB 연결 (connectionId 반환)                       |
 | `db_disconnect`          | 등록된 DB 연결 해제                                            |
 | `db_list_connections`    | 활성 DB 연결 목록 조회                                         |
-| `nl2sql_schema`          | 스키마 조회 (json/prompt/summary 형식)                         |
+| `nl2sql_schema`          | 스키마 조회 (json/prompt/summary 형식). `tables`(테이블명 배열) 또는 `query`(자연어)로 조회 가능 |
 | `nl2sql_query`           | 자연어 → SQL 변환 및 선택적 실행                               |
 | `cache_status`           | 메타데이터 캐시 상태 조회                                      |
 | `cache_refresh`          | 메타데이터 + 스키마 캐시 새로고침 (Docker 재기동 불필요)       |
@@ -543,6 +543,13 @@ nl2sql_ts/
 | Container  | Docker, Docker Compose        |
 
 ## Version History
+
+### v1.9.0
+
+- `nl2sql_schema`: 자연어 쿼리(`query` 파라미터)로 연관 테이블 스키마 자동 조회
+- `tables` 파라미터 optional로 변경 — `query`만으로 호출 가능
+- `NL2SQLEngine.getSchemaByQuery()` 신규 메서드 추가 (LLM 기반 테이블 선별)
+- 예시: `{ query: "vip그룹고객조회" }` → LLM이 관련 테이블 추정 후 스키마 반환
 
 ### v1.8.0
 
