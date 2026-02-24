@@ -387,7 +387,7 @@ queries:
         ) VALUES (
           src.source_schema, src.source_table, src.source_column,
           src.target_schema, src.target_table, src.target_column,
-          'MANY_TO_ONE', ?, 'LEFT', {{DESCRIPTION_BIND}}, ?, ?
+          ?, ?, ?, {{DESCRIPTION_BIND}}, ?, ?
         )
     mapping: {}
 

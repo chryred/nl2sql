@@ -369,7 +369,7 @@ queries:
         target_schema, target_table, target_column,
         relationship_type, confidence_level, join_hint,
         description, is_active, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, 'MANY_TO_ONE', ?, 'LEFT', ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     mapping: {}
 
   # ==========================================================================

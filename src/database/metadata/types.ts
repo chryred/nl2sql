@@ -41,7 +41,7 @@ export interface TableRelationship {
   targetSchema: string;
   targetTable: string;
   targetColumn: string;
-  relationshipType: RelationshipType;
+  relationshipType?: RelationshipType;
   confidence: ConfidenceLevel;
   joinHint?: JoinHint;
   polymorphicTypeColumn?: string;

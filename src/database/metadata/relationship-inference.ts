@@ -14,6 +14,8 @@ import type {
   NamingConvention,
   TableRelationship,
   ConfidenceLevel,
+  RelationshipType,
+  JoinHint,
   InferenceQueryDefinition,
 } from './types.js';
 import { loadMetadataQueries, mapQueryResults } from './query-loader.js';
@@ -38,6 +40,9 @@ export interface InferredRelationship {
   inferenceType: 'naming_convention' | 'column_match';
   matchedPattern?: string;
   description: string;
+  // LLM 추론 시 추가 정보
+  relationshipType?: RelationshipType;   // 없으면 upsert에서 'MANY_TO_ONE' 기본값
+  joinHint?: JoinHint;                   // 없으면 upsert에서 'LEFT' 기본값
 }
 
 /**
@@ -718,6 +723,9 @@ async function upsertRelationship(
     ? (isActive ? 1 : 0)
     : isActive;
 
+  const relationshipTypeVal = candidate.relationshipType ?? 'MANY_TO_ONE';
+  const joinHintVal = candidate.joinHint ?? 'LEFT';
+
   // Oracle description 한글 인코딩 처리
   let descriptionVal: string | number = candidate.description;
   if (dbType === 'oracle') {
@@ -734,7 +742,9 @@ async function upsertRelationship(
     candidate.targetSchema,
     candidate.targetTable,
     candidate.targetColumn,
+    relationshipTypeVal,
     candidate.confidenceLevel,
+    joinHintVal,
     descriptionVal,
     isActiveVal,
     createdBy,
