@@ -253,7 +253,7 @@ US7ASCII 등 레거시 캐릭터셋을 사용하는 Oracle 환경에서 한글(M
 
 ```bash
 # .env 또는 환경변수
-ORACLE_DATA_CHARSET=UTF-8
+ORACLE_DATA_CHARSET=ms949
 ```
 
 설정 파일(`nl2sql.config.yaml`)로도 지정 가능합니다:
@@ -272,6 +272,17 @@ database:
 MCP `db_connect` 도구에서도 `oracleDataCharset` 파라미터로 지정할 수 있습니다.
 
 **지원 인코딩:** `ms949`, `euc-kr`, `cp949` 등 (`iconv-lite` 지원 인코딩)
+
+### 한글 깨짐 방지 적용 범위
+
+`oracleDataCharset` 설정 시 다음 경로에 자동으로 한글 깨짐 방지가 적용됩니다:
+
+| 경로 | 처리 방식 |
+| ---- | --------- |
+| **SQL 생성 프롬프트** | AI에게 charset 정보 및 `UTL_RAW.CAST_TO_RAW()` 사용 가이드 전달 |
+| **쿼리 이력 저장** (`query_history`) | `natural_query` 인코딩 후 `HEXTORAW` 패턴으로 INSERT |
+| **쿼리 이력 조회** (`query_history_list/search`) | SELECT에 `UTL_RAW.CAST_TO_RAW(natural_query)` 자동 적용 |
+| **패턴 등록** (`query_pattern_add`, `query_history_register`) | `pattern_name`, `description`, `example_input`, `keyword` 인코딩 |
 
 ## Security Features
 
@@ -543,6 +554,16 @@ nl2sql_ts/
 | Container  | Docker, Docker Compose        |
 
 ## Version History
+
+### v1.10.0
+
+- **Oracle 한글 깨짐 방지 종합 개선**: `oracleDataCharset` 설정 시 모든 경로에 charset 처리 적용
+- `nl2sql_query`: 프롬프트에 charset 정보 및 `UTL_RAW.CAST_TO_RAW()` 사용 가이드 자동 삽입 → AI가 생성하는 SELECT SQL에 UTL_RAW 자동 적용
+- `query_history_list/search/register`: 조회 시 `UTL_RAW.CAST_TO_RAW(natural_query)` 자동 적용 (읽기 깨짐 방지)
+- `query_history` 저장 시 `natural_query` 한글 인코딩 처리 (쓰기 깨짐 방지)
+- `query_pattern_add`, `query_history_register`: `pattern_name`, `description`, `example_input`, `keyword` 한글 인코딩 처리
+- `charset-converter.ts`: `resolveOracleTextBind`, `resolveOracleNaturalQuerySelect` 헬퍼 함수 추가
+- Oracle YAML: `{{BIND_TEXT}}` (쓰기 경로), `{{NATURAL_QUERY_SELECT}}` (읽기 경로) 플레이스홀더 패턴 도입
 
 ### v1.9.0
 

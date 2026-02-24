@@ -102,7 +102,7 @@ export class ConnectionManager {
    * @returns 16자 hex connectionId
    */
   static generateId(params: ConnectionParams): string {
-    const key = `${params.type}:${params.host}:${params.port}:${params.database}:${params.user}`;
+    const key = `${params.systemName}:${params.type}:${params.host}:${params.port}:${params.database}:${params.user}`;
     return createHash('sha256').update(key).digest('hex').substring(0, 16);
   }
 
