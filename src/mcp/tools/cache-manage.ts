@@ -21,6 +21,7 @@ import {
 } from '../../database/metadata/index.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
+import { buildConfigFromEntry } from '../utils/config-helper.js';
 
 /**
  * cache_status 도구의 입력 스키마
@@ -138,20 +139,25 @@ export async function cacheRefresh(
     // ConnectionManager 경로
     if (input.invalidateOnly) {
       connManager.invalidateCache(entry.connectionId);
+      connManager.invalidateSchemaCache(entry.connectionId);
       return {
         success: true,
-        message: 'Metadata cache invalidated for connection. Will reload on next query.',
+        message: 'Metadata and schema cache invalidated for connection. Will reload on next query.',
         connectionId: entry.connectionId,
       };
     }
 
     try {
-      await connManager.refreshCache(entry.connectionId);
+      const config = buildConfigFromEntry(entry);
+      await Promise.all([
+        connManager.refreshCache(entry.connectionId),
+        connManager.refreshSchemaCache(entry.connectionId, config),
+      ]);
       const stats = connManager.getCacheStats(entry.connectionId);
 
       return {
         success: true,
-        message: 'Metadata cache refreshed successfully',
+        message: 'Metadata and schema cache refreshed successfully',
         connectionId: entry.connectionId,
         stats: {
           initialized: stats.initialized,
