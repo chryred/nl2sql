@@ -4,7 +4,8 @@
  * buildTableSelectionPrompt, parseSelectedTables 함수 테스트
  */
 
-import { buildTableSelectionPrompt, parseSelectedTables } from '../../src/ai/prompt-builder.js';
+import { buildTableSelectionPrompt, parseSelectedTables, buildPrompt } from '../../src/ai/prompt-builder.js';
+import type { SchemaInfo } from '../../src/database/schema-extractor.js';
 import type {
   GlossaryTerm,
   GlossaryAlias,
@@ -182,5 +183,56 @@ describe('parseSelectedTables', () => {
     const response = 'Based on the query, the relevant tables are:\n["customers", "vip_benefits"]\nThese tables contain...';
     const result = parseSelectedTables(response);
     expect(result).toEqual(['customers', 'vip_benefits']);
+  });
+});
+
+describe('buildPrompt', () => {
+  const mockSchema: SchemaInfo = {
+    tables: [{
+      name: 'customers',
+      schema: 'public',
+      comment: '고객',
+      columns: [{ name: 'cust_name', type: 'VARCHAR2(100)', nullable: false, comment: '고객명', isPrimaryKey: false, isForeignKey: false }],
+      indexes: [],
+    }],
+    recentQueries: [],
+  };
+
+  it('should include database type in prompt', () => {
+    const result = buildPrompt({
+      tables: mockSchema,
+      naturalLanguageQuery: '고객 목록 조회',
+      dbType: 'oracle',
+    });
+    expect(result).toContain('Database type: ORACLE');
+  });
+
+  it('should include charset info when oracleDataCharset is provided', () => {
+    const result = buildPrompt({
+      tables: mockSchema,
+      naturalLanguageQuery: '고객 목록 조회',
+      dbType: 'oracle',
+      oracleDataCharset: 'ms949',
+    });
+    expect(result).toContain('data charset: ms949');
+    expect(result).toContain('UTL_RAW.CAST_TO_RAW');
+  });
+
+  it('should NOT include charset info when oracleDataCharset is not provided', () => {
+    const result = buildPrompt({
+      tables: mockSchema,
+      naturalLanguageQuery: '고객 목록 조회',
+      dbType: 'oracle',
+    });
+    expect(result).not.toContain('UTL_RAW.CAST_TO_RAW');
+  });
+
+  it('should NOT include UTL_RAW hint for non-oracle databases', () => {
+    const result = buildPrompt({
+      tables: mockSchema,
+      naturalLanguageQuery: '고객 목록 조회',
+      dbType: 'postgresql',
+    });
+    expect(result).not.toContain('UTL_RAW');
   });
 });
