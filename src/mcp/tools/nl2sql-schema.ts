@@ -207,15 +207,20 @@ async function nl2sqlSchemaLegacy(
 
   try {
     const knex = createConnection(config);
-    const rawSchema = await extractSchema(knex, config);
-    const schema = filterSchemaByTables(rawSchema, input.tables);
-    const data = formatSchema(schema, input.format);
 
-    return {
-      success: true,
-      format: input.format,
-      data,
-    };
+    if (input.tables && input.tables.length > 0) {
+      // 기존 경로: 명시적 테이블명으로 필터링
+      const rawSchema = await extractSchema(knex, config);
+      const schema = filterSchemaByTables(rawSchema, input.tables);
+      const data = formatSchema(schema, input.format);
+      return { success: true, format: input.format, data };
+    } else {
+      // 신규 경로: 자연어 쿼리로 LLM 테이블 선별
+      const engine = new NL2SQLEngine(knex, config);
+      const schema = await engine.getSchemaByQuery(input.query!);
+      const data = formatSchema(schema, input.format);
+      return { success: true, format: input.format, data };
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return {
