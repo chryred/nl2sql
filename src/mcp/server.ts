@@ -295,7 +295,11 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     'nl2sql_schema',
     {
       description:
-        'Get database schema information. Supports json, prompt, and summary formats. Optionally specify connectionId.',
+        'Use ONLY when the user explicitly wants to inspect table structure or column definitions ' +
+        '(e.g., "show me the schema of table X", "what columns does Y have?"). ' +
+        'Do NOT call this before nl2sql_query — nl2sql_query handles schema lookup internally. ' +
+        'Requires a list of table names (case-insensitive) to avoid fetching all tables. ' +
+        'Supports json, prompt, and summary formats. Optionally specify connectionId.',
       inputSchema: nl2sqlSchemaInputSchema,
     },
     async (args) => {
@@ -324,7 +328,12 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     'nl2sql_query',
     {
       description:
-        'Convert natural language to SQL and optionally execute it. Optionally specify connectionId.',
+        'PRIMARY tool for ALL natural language database queries. ' +
+        'Handles schema lookup, SQL generation, and optional execution internally — no pre-schema fetch needed. ' +
+        'Use this whenever the user asks anything about the data in natural language ' +
+        '(e.g., "show me...", "find...", "count...", "list all..."). ' +
+        'Set execute=true to run immediately, execute=false to preview SQL only. ' +
+        'Optionally specify connectionId.',
       inputSchema: nl2sqlQueryInputSchema,
     },
     async (args) => {

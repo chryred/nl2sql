@@ -28,6 +28,11 @@ import type { ConnectionManager } from '../../database/connection-manager.js';
  * nl2sql_schema 도구의 입력 스키마
  */
 export const nl2sqlSchemaInputSchema = z.object({
+  tables: z
+    .array(z.string())
+    .describe(
+      'Table names to retrieve schema for (case-insensitive). e.g. ["vip_grp_cust_inf", "vip_grp_inf"]'
+    ),
   format: z
     .enum(['json', 'prompt', 'summary'])
     .default('json')
@@ -81,6 +86,19 @@ function formatSchemaAsSummary(schema: SchemaInfo): SchemaSummary {
 }
 
 /**
+ * 지정된 테이블명(대소문자 무시)으로 스키마를 필터링합니다.
+ */
+function filterSchemaByTables(schema: SchemaInfo, tables: string[]): SchemaInfo {
+  const lowerTables = tables.map((t) => t.toLowerCase());
+  return {
+    ...schema,
+    tables: schema.tables.filter((table) =>
+      lowerTables.includes(table.name.toLowerCase())
+    ),
+  };
+}
+
+/**
  * 스키마를 포맷합니다.
  */
 function formatSchema(
@@ -117,8 +135,9 @@ export async function nl2sqlSchema(
     try {
       const config = buildConfigFromEntry(entry);
 
-      const schema = await connManager.getOrInitSchemaCache(entry.connectionId, config)
+      const rawSchema = await connManager.getOrInitSchemaCache(entry.connectionId, config)
         ?? await extractSchema(entry.knex, config);
+      const schema = filterSchemaByTables(rawSchema, input.tables);
       const data = formatSchema(schema, input.format);
 
       return {
@@ -163,7 +182,8 @@ async function nl2sqlSchemaLegacy(
 
   try {
     const knex = createConnection(config);
-    const schema = await extractSchema(knex, config);
+    const rawSchema = await extractSchema(knex, config);
+    const schema = filterSchemaByTables(rawSchema, input.tables);
     const data = formatSchema(schema, input.format);
 
     return {
