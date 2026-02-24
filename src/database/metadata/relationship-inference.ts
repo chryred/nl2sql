@@ -21,6 +21,10 @@ import type {
 import { loadMetadataQueries, mapQueryResults } from './query-loader.js';
 import { encodeForOracle } from '../charset-converter.js';
 import { logger } from '../../logger/index.js';
+import type { AIProvider } from '../../ai/providers/openai.js';
+import { formatSchemaForPrompt } from '../schema-extractor.js';
+import type { ExtendedTableInfo } from '../types.js';
+import type { MetadataCache } from './types.js';
 
 // =============================================================================
 // 타입 정의
@@ -51,6 +55,10 @@ export interface InferredRelationship {
 export interface InferenceOptions {
   schema?: string;
   types?: ('naming_convention' | 'column_match')[];
+  // LLM 기반 추론에 필요한 선택적 파라미터
+  aiProvider?: AIProvider;
+  schemaTables?: ExtendedTableInfo[];
+  metadata?: MetadataCache;
 }
 
 /**
@@ -482,6 +490,46 @@ function inferByNamingConvention(
 }
 
 /**
+ * LLM FK 추론용 프롬프트를 생성합니다.
+ */
+function buildFKInferencePrompt(
+  schemaTables: ExtendedTableInfo[],
+  existingSet: Set<string>,
+  namingConventions: NamingConvention[],
+  metadata?: MetadataCache
+): string {
+  const sections: string[] = [];
+
+  // 1. 스키마 정보
+  sections.push(`=== Database Schema ===\n${formatSchemaForPrompt(schemaTables)}`);
+
+  // 2. 기존 관계 (중복 방지)
+  if (existingSet.size > 0) {
+    const relLines = [...existingSet].map((r) => `  - ${r.replace('→', ' → ')}`);
+    sections.push(`=== Existing Relationships (이미 등록됨, 중복 금지) ===\n${relLines.join('\n')}`);
+  }
+
+  // 3. 비즈니스 용어집
+  if (metadata?.glossaryTerms && metadata.glossaryTerms.length > 0) {
+    const glossLines = metadata.glossaryTerms.slice(0, 20).map((t) => {
+      const def = t.definition ? ` - ${t.definition}` : '';
+      return `  - "${t.term}" → ${t.sqlCondition}${def}`;
+    });
+    sections.push(`=== Business Glossary ===\n${glossLines.join('\n')}`);
+  }
+
+  // 4. 네이밍 컨벤션 (참고용)
+  if (namingConventions.length > 0) {
+    const ncLines = namingConventions.slice(0, 10).map(
+      (nc) => `  - 컬럼 패턴 ${nc.columnPattern} → ${nc.targetTablePattern}.${nc.targetColumnPattern}`
+    );
+    sections.push(`=== Naming Conventions (참고용) ===\n${ncLines.join('\n')}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+/**
  * 동일 컬럼명 기반으로 관계를 추론합니다.
  *
  * @param columns - DB 컬럼 목록
@@ -563,6 +611,119 @@ function inferByColumnMatch(
   return candidates;
 }
 
+/**
+ * LLM 기반으로 FK 관계를 추론합니다.
+ */
+export async function inferByLLM(
+  aiProvider: AIProvider | undefined,
+  schemaTables: ExtendedTableInfo[],
+  metadata: MetadataCache | undefined,
+  existingSet: Set<string>,
+  namingConventions: NamingConvention[] = []
+): Promise<InferredRelationship[]> {
+  if (!aiProvider) {
+    logger.warn('inferByLLM: aiProvider not provided, skipping LLM inference');
+    return [];
+  }
+
+  const prompt = buildFKInferencePrompt(schemaTables, existingSet, namingConventions, metadata);
+
+  let rawResponse: string;
+  try {
+    rawResponse = await aiProvider.generateInferFK(prompt);
+  } catch (err) {
+    logger.warn(`inferByLLM: AI call failed — ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  }
+
+  // JSON 파싱
+  let parsed: unknown[];
+  try {
+    // 마크다운 코드블록 제거 (```json ... ```)
+    const cleaned = rawResponse.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
+    parsed = JSON.parse(cleaned) as unknown[];
+    if (!Array.isArray(parsed)) {
+      logger.warn('inferByLLM: LLM response is not a JSON array');
+      return [];
+    }
+  } catch {
+    logger.warn(`inferByLLM: Failed to parse LLM response as JSON: ${rawResponse.slice(0, 200)}`);
+    return [];
+  }
+
+  // 스키마 내 테이블/컬럼 존재 확인용 Set 구축
+  const tableColSet = new Set<string>();
+  for (const t of schemaTables) {
+    for (const c of t.columns) {
+      tableColSet.add(
+        `${(t.schemaName ?? '').toLowerCase()}.${t.name.toLowerCase()}.${c.name.toLowerCase()}`
+      );
+    }
+  }
+
+  const candidates: InferredRelationship[] = [];
+  const seen = new Set<string>();
+
+  for (const item of parsed) {
+    if (typeof item !== 'object' || item === null) continue;
+    const r = item as Record<string, unknown>;
+
+    const sourceSchema = String(r['source_schema'] ?? '');
+    const sourceTable  = String(r['source_table']  ?? '');
+    const sourceColumn = String(r['source_column'] ?? '');
+    const targetSchema = String(r['target_schema'] ?? '');
+    const targetTable  = String(r['target_table']  ?? '');
+    const targetColumn = String(r['target_column'] ?? '');
+
+    if (!sourceTable || !sourceColumn || !targetTable || !targetColumn) {
+      logger.warn(`inferByLLM: skipping incomplete item: ${JSON.stringify(r)}`);
+      continue;
+    }
+
+    // 존재하지 않는 컬럼이면 skip
+    const srcKey = `${sourceSchema.toLowerCase()}.${sourceTable.toLowerCase()}.${sourceColumn.toLowerCase()}`;
+    const tgtKey = `${targetSchema.toLowerCase()}.${targetTable.toLowerCase()}.${targetColumn.toLowerCase()}`;
+    if (!tableColSet.has(srcKey)) {
+      logger.warn(`inferByLLM: source column not found: ${srcKey}`);
+      continue;
+    }
+    if (!tableColSet.has(tgtKey)) {
+      logger.warn(`inferByLLM: target column not found: ${tgtKey}`);
+      continue;
+    }
+
+    // 중복 확인
+    const relKey = `${srcKey}→${tgtKey}`;
+    if (existingSet.has(relKey) || seen.has(relKey)) continue;
+    seen.add(relKey);
+
+    const confidenceRaw = String(r['confidence'] ?? 'LOW').toUpperCase();
+    const confidenceLevel: ConfidenceLevel =
+      confidenceRaw === 'HIGH' ? 'HIGH' :
+      confidenceRaw === 'MEDIUM' ? 'MEDIUM' : 'LOW';
+
+    const relType = String(r['relationship_type'] ?? 'MANY_TO_ONE') as RelationshipType;
+    const joinH   = String(r['join_hint'] ?? 'LEFT') as JoinHint;
+
+    candidates.push({
+      sourceSchema,
+      sourceTable,
+      sourceColumn,
+      targetSchema,
+      targetTable,
+      targetColumn,
+      confidenceLevel,
+      inferenceType: 'column_match',
+      description: String(r['description'] ?? `LLM 추론: ${sourceTable}.${sourceColumn} → ${targetTable}.${targetColumn}`),
+      relationshipType: relType,
+      joinHint: joinH,
+    });
+  }
+
+  logger.info(`inferByLLM: ${candidates.length} candidates inferred`);
+  return candidates;
+}
+
 // =============================================================================
 // 공개 API
 // =============================================================================
@@ -628,21 +789,17 @@ export async function inferRelationships(
     }
   }
 
-  // 2) 동일 컬럼명 기반 추론
+  // 2) LLM 기반 추론 (column_match 타입)
   if (types.includes('column_match')) {
-    const constraintColumns = await fetchConstraintColumns(
-      knex,
-      dbType,
-      options?.schema
-    );
-    const constraintSet = buildConstraintSet(constraintColumns);
-
-    const cmCandidates = inferByColumnMatch(
-      columns,
+    const { aiProvider, schemaTables, metadata } = options ?? {};
+    const cmCandidates = await inferByLLM(
+      aiProvider,
+      schemaTables ?? [],
+      metadata,
       existingSet,
-      constraintSet
+      namingConventions
     );
-    logger.info(`Column match inference: ${cmCandidates.length} candidates`);
+    logger.info(`LLM inference: ${cmCandidates.length} candidates`);
     allCandidates.push(...cmCandidates);
   }
 

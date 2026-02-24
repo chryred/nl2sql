@@ -24,6 +24,7 @@ let pluralize: any;
 let singularize: any;
 let buildSchemaFilter: any;
 let loadMetadataQueries: any;
+let inferByLLM: any;
 
 describe('relationship-inference', () => {
   beforeAll(async () => {
@@ -38,6 +39,7 @@ describe('relationship-inference', () => {
       '../../src/database/metadata/query-loader.js'
     );
     loadMetadataQueries = queryLoader.loadMetadataQueries;
+    inferByLLM = (inference as any).inferByLLM;
   });
   describe('pluralize', () => {
     it('should add "s" suffix', () => {
@@ -328,4 +330,102 @@ describe('relationship-inference', () => {
       expect(result).toContain('companies');
     });
   });
+  describe('inferByLLM', () => {
+    const mockAIProvider = {
+      generateInferFK: jest.fn(),
+      generateSQL: jest.fn(),
+      generateComment: jest.fn(),
+      selectTables: jest.fn(),
+    };
+
+    const mockSchemaTables = [
+      {
+        name: 'RESERVATIONS',
+        schemaName: 'NL2SQL',
+        comment: '예약 테이블',
+        columns: [
+          { name: 'RESERVATION_ID', type: 'NUMBER', isPrimaryKey: true, nullable: false },
+          { name: 'STORE_ID', type: 'NUMBER', isPrimaryKey: false, nullable: false },
+          { name: 'MEMBER_ID', type: 'NUMBER', isPrimaryKey: false, nullable: false },
+        ],
+        indexes: [],
+      },
+      {
+        name: 'STORES',
+        schemaName: 'NL2SQL',
+        comment: '매장 테이블',
+        columns: [
+          { name: 'STORE_ID', type: 'NUMBER', isPrimaryKey: true, nullable: false },
+          { name: 'STORE_NAME', type: 'VARCHAR2', isPrimaryKey: false, nullable: false },
+        ],
+        indexes: [],
+      },
+    ];
+
+    const existingSet = new Set<string>();
+
+    it('should call aiProvider.generateInferFK and return mapped InferredRelationship[]', async () => {
+      mockAIProvider.generateInferFK.mockResolvedValueOnce(JSON.stringify([
+        {
+          source_schema: 'NL2SQL',
+          source_table: 'RESERVATIONS',
+          source_column: 'STORE_ID',
+          target_schema: 'NL2SQL',
+          target_table: 'STORES',
+          target_column: 'STORE_ID',
+          relationship_type: 'MANY_TO_ONE',
+          confidence: 'HIGH',
+          join_hint: 'INNER',
+          description: '예약 → 매장 관계',
+        },
+      ]));
+
+      const result = await inferByLLM(mockAIProvider, mockSchemaTables, undefined, existingSet);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].sourceTable).toBe('RESERVATIONS');
+      expect(result[0].targetTable).toBe('STORES');
+      expect(result[0].confidenceLevel).toBe('HIGH');
+      expect(result[0].relationshipType).toBe('MANY_TO_ONE');
+      expect(result[0].joinHint).toBe('INNER');
+      expect(result[0].description).toBe('예약 → 매장 관계');
+      expect(result[0].inferenceType).toBe('column_match');
+    });
+
+    it('should skip relationships already in existingSet', async () => {
+      const existingWithDup = new Set([
+        'nl2sql.reservations.store_id→nl2sql.stores.store_id',
+      ]);
+
+      mockAIProvider.generateInferFK.mockResolvedValueOnce(JSON.stringify([
+        {
+          source_schema: 'NL2SQL',
+          source_table: 'RESERVATIONS',
+          source_column: 'STORE_ID',
+          target_schema: 'NL2SQL',
+          target_table: 'STORES',
+          target_column: 'STORE_ID',
+          relationship_type: 'MANY_TO_ONE',
+          confidence: 'HIGH',
+          join_hint: 'INNER',
+          description: '예약 → 매장 관계',
+        },
+      ]));
+
+      const result = await inferByLLM(mockAIProvider, mockSchemaTables, undefined, existingWithDup);
+      expect(result).toHaveLength(0);
+    });
+
+    it('should return [] and log warn when LLM returns invalid JSON', async () => {
+      mockAIProvider.generateInferFK.mockResolvedValueOnce('not json');
+      const result = await inferByLLM(mockAIProvider, mockSchemaTables, undefined, existingSet);
+      expect(result).toHaveLength(0);
+    });
+
+    it('should return [] gracefully when aiProvider is undefined', async () => {
+      const result = await inferByLLM(undefined, mockSchemaTables, undefined, existingSet);
+      expect(result).toHaveLength(0);
+    });
+  });
+
 });
