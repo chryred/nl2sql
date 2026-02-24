@@ -377,7 +377,7 @@ queries:
   # ==========================================================================
   queryPatternInsert:
     sql: |
-      INSERT INTO nl2sql.query_patterns (
+      INSERT INTO query_patterns (
         pattern_code, pattern_name, category,
         sql_template, sql_template_mysql, sql_template_oracle,
         applicable_tables, match_score_threshold, priority,
@@ -400,7 +400,7 @@ queries:
   # ==========================================================================
   queryPatternKeywordInsert:
     sql: |
-      INSERT IGNORE INTO nl2sql.pattern_keywords (
+      INSERT IGNORE INTO pattern_keywords (
         pattern_code, keyword, locale, weight, match_type, is_required
       ) VALUES (?, ?, 'ko', 10, 'CONTAINS', 0)
     mapping: {}
@@ -419,8 +419,8 @@ queries:
         qp.example_input,
         qp.applicable_tables,
         GROUP_CONCAT(pk.keyword ORDER BY pk.keyword SEPARATOR ',') AS keywords
-      FROM nl2sql.query_patterns qp
-      LEFT JOIN nl2sql.pattern_keywords pk
+      FROM query_patterns qp
+      LEFT JOIN pattern_keywords pk
              ON pk.pattern_code = qp.pattern_code AND pk.is_active = 1
       WHERE qp.is_active = 1
         AND (qp.pattern_name LIKE ? OR qp.description LIKE ?)
@@ -435,21 +435,21 @@ queries:
   # ==========================================================================
   queryHistoryUpsert:
     sql: |
-      INSERT INTO nl2sql.query_history (
+      INSERT INTO query_history (
         query_hash, natural_query, generated_sql, connection_id, executed
       ) VALUES (?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
-        usage_count   = nl2sql.query_history.usage_count + 1,
+        usage_count   = query_history.usage_count + 1,
         last_used_at  = NOW(),
         generated_sql = VALUES(generated_sql),
-        executed      = nl2sql.query_history.executed OR VALUES(executed)
+        executed      = query_history.executed OR VALUES(executed)
     mapping: {}
 
   queryHistoryListRecent:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
-      FROM nl2sql.query_history
+      FROM query_history
       ORDER BY last_used_at DESC
       LIMIT ?
     mapping: {}
@@ -458,7 +458,7 @@ queries:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
-      FROM nl2sql.query_history
+      FROM query_history
       ORDER BY usage_count DESC, last_used_at DESC
       LIMIT ?
     mapping: {}
@@ -467,7 +467,7 @@ queries:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
-      FROM nl2sql.query_history
+      FROM query_history
       WHERE natural_query LIKE ?
       ORDER BY usage_count DESC, last_used_at DESC
       LIMIT ?
@@ -477,7 +477,7 @@ queries:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at
-      FROM nl2sql.query_history
+      FROM query_history
       WHERE id = ?
     mapping: {}
 

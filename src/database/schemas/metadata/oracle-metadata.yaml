@@ -396,7 +396,7 @@ queries:
   # ==========================================================================
   queryPatternInsert:
     sql: |
-      MERGE INTO nl2sql.query_patterns tgt
+      MERGE INTO query_patterns tgt
       USING (SELECT ? AS pattern_code FROM DUAL) src
       ON (tgt.pattern_code = src.pattern_code)
       WHEN MATCHED THEN UPDATE SET
@@ -422,7 +422,7 @@ queries:
   # ==========================================================================
   queryPatternKeywordInsert:
     sql: |
-      MERGE INTO nl2sql.pattern_keywords tgt
+      MERGE INTO pattern_keywords tgt
       USING (SELECT ? AS pattern_code, ? AS keyword FROM DUAL) src
       ON (tgt.pattern_code = src.pattern_code AND tgt.keyword = src.keyword)
       WHEN NOT MATCHED THEN INSERT (
@@ -439,8 +439,8 @@ queries:
              qp.sql_template, qp.description, qp.example_input,
              qp.applicable_tables,
              LISTAGG(pk.keyword, ',') WITHIN GROUP (ORDER BY pk.keyword) AS keywords
-      FROM nl2sql.query_patterns qp
-      LEFT JOIN nl2sql.pattern_keywords pk
+      FROM query_patterns qp
+      LEFT JOIN pattern_keywords pk
              ON pk.pattern_code = qp.pattern_code AND pk.is_active = 1
       WHERE qp.is_active = 1
         AND (UPPER(qp.pattern_name) LIKE UPPER(?) OR UPPER(qp.description) LIKE UPPER(?))
@@ -455,7 +455,7 @@ queries:
   # ==========================================================================
   queryHistoryUpsert:
     sql: |
-      MERGE INTO nl2sql.query_history tgt
+      MERGE INTO query_history tgt
       USING (SELECT ? AS query_hash FROM DUAL) src
       ON (tgt.query_hash = src.query_hash)
       WHEN MATCHED THEN UPDATE SET
@@ -472,7 +472,7 @@ queries:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
-      FROM nl2sql.query_history
+      FROM query_history
       ORDER BY last_used_at DESC
       FETCH FIRST ? ROWS ONLY
     mapping: {}
@@ -481,7 +481,7 @@ queries:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
-      FROM nl2sql.query_history
+      FROM query_history
       ORDER BY usage_count DESC, last_used_at DESC
       FETCH FIRST ? ROWS ONLY
     mapping: {}
@@ -490,7 +490,7 @@ queries:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
-      FROM nl2sql.query_history
+      FROM query_history
       WHERE UPPER(natural_query) LIKE UPPER(?)
       ORDER BY usage_count DESC, last_used_at DESC
       FETCH FIRST ? ROWS ONLY
@@ -500,7 +500,7 @@ queries:
     sql: |
       SELECT id, natural_query, generated_sql, connection_id,
              executed, usage_count, last_used_at
-      FROM nl2sql.query_history
+      FROM query_history
       WHERE id = ?
     mapping: {}
 
