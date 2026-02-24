@@ -23,6 +23,7 @@ import {
 import { maskSensitiveInfo } from '../../errors/index.js';
 import { buildConfigFromEntry } from '../utils/config-helper.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
+import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
 
 /**
  * nl2sql_schema 도구의 입력 스키마
@@ -147,16 +148,28 @@ export async function nl2sqlSchema(
     try {
       const config = buildConfigFromEntry(entry);
 
-      const rawSchema = await connManager.getOrInitSchemaCache(entry.connectionId, config)
-        ?? await extractSchema(entry.knex, config);
-      const schema = filterSchemaByTables(rawSchema, input.tables);
-      const data = formatSchema(schema, input.format);
-
-      return {
-        success: true,
-        format: input.format,
-        data,
-      };
+      if (input.tables && input.tables.length > 0) {
+        // 기존 경로: 명시적 테이블명으로 필터링
+        const rawSchema =
+          (await connManager.getOrInitSchemaCache(entry.connectionId, config)) ??
+          (await extractSchema(entry.knex, config));
+        const schema = filterSchemaByTables(rawSchema, input.tables);
+        const data = formatSchema(schema, input.format);
+        return { success: true, format: input.format, data };
+      } else {
+        // 신규 경로: 자연어 쿼리로 LLM 테이블 선별
+        const [metadataCache, schemaCache] = await Promise.all([
+          connManager.getOrInitCache(entry.connectionId),
+          connManager.getOrInitSchemaCache(entry.connectionId, config),
+        ]);
+        const engine = new NL2SQLEngine(entry.knex, config, {
+          metadataCache,
+          schemaCache,
+        });
+        const schema = await engine.getSchemaByQuery(input.query!);
+        const data = formatSchema(schema, input.format);
+        return { success: true, format: input.format, data };
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       return {
