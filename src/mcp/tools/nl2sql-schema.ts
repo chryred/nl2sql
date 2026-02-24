@@ -21,9 +21,10 @@ import {
   type SchemaInfo,
 } from '../../database/schema-extractor.js';
 import { maskSensitiveInfo } from '../../errors/index.js';
+import { validateNaturalLanguageInput } from '../../utils/input-validator.js';
 import { buildConfigFromEntry } from '../utils/config-helper.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
-import { NL2SQLEngine } from '../../core/nl2sql-engine.js';
+import { NL2SQLEngine, filterSchemaByTables } from '../../core/nl2sql-engine.js';
 
 /**
  * nl2sql_schema 도구의 입력 스키마
@@ -97,19 +98,6 @@ function formatSchemaAsSummary(schema: SchemaInfo): SchemaSummary {
   };
 }
 
-/**
- * 지정된 테이블명(대소문자 무시)으로 스키마를 필터링합니다.
- */
-function filterSchemaByTables(schema: SchemaInfo, tables: string[] | undefined): SchemaInfo {
-  if (!tables || tables.length === 0) return schema;
-  const lowerTables = tables.map((t) => t.toLowerCase());
-  return {
-    ...schema,
-    tables: schema.tables.filter((table) =>
-      lowerTables.includes(table.name.toLowerCase())
-    ),
-  };
-}
 
 /**
  * 스키마를 포맷합니다.
@@ -158,6 +146,14 @@ export async function nl2sqlSchema(
         return { success: true, format: input.format, data };
       } else {
         // 신규 경로: 자연어 쿼리로 LLM 테이블 선별
+        const validation = validateNaturalLanguageInput(input.query!);
+        if (!validation.valid) {
+          return {
+            success: false,
+            format: input.format,
+            error: `Input validation failed: ${validation.error}`,
+          };
+        }
         const [metadataCache, schemaCache] = await Promise.all([
           connManager.getOrInitCache(entry.connectionId),
           connManager.getOrInitSchemaCache(entry.connectionId, config),
@@ -216,6 +212,14 @@ async function nl2sqlSchemaLegacy(
       return { success: true, format: input.format, data };
     } else {
       // 신규 경로: 자연어 쿼리로 LLM 테이블 선별
+      const validation = validateNaturalLanguageInput(input.query!);
+      if (!validation.valid) {
+        return {
+          success: false,
+          format: input.format,
+          error: `Input validation failed: ${validation.error}`,
+        };
+      }
       const engine = new NL2SQLEngine(knex, config);
       const schema = await engine.getSchemaByQuery(input.query!);
       const data = formatSchema(schema, input.format);
