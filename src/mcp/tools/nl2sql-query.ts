@@ -141,7 +141,8 @@ export async function nl2sqlQuery(
         validation.sanitized,
         sql,
         entry.connectionId,
-        input.execute ?? false
+        input.execute ?? false,
+        entry.params.oracleDataCharset
       ).catch(() => {});
 
       return output;

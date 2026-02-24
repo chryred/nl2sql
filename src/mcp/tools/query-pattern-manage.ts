@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { maskSensitiveInfo } from '../../errors/index.js';
 import { loadMetadataQueries } from '../../database/metadata/query-loader.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
+import { encodeForOracle, resolveOracleTextBind } from '../../database/charset-converter.js';
 
 // ============================================================================
 // 공통 유틸
@@ -129,21 +130,34 @@ export async function queryPatternAdd(
     // Oracle MERGE INTO는 바인딩 순서: ON절 + MATCHED SET + NOT MATCHED INSERT
     let bindings: unknown[];
     if (dbType === 'oracle') {
+      const charset = entry.params.oracleDataCharset;
+      const mergedSql = resolveOracleTextBind(insertDef.sql, charset);
+      const encodedName = charset
+        ? encodeForOracle(input.patternName, charset)
+        : input.patternName;
+      const encodedDesc = charset
+        ? encodeForOracle(input.description, charset)
+        : input.description;
+      const encodedExample =
+        input.exampleInput && charset
+          ? encodeForOracle(input.exampleInput, charset)
+          : (input.exampleInput ?? null);
+
       bindings = [
         // ON (SELECT ? AS pattern_code FROM DUAL)
         patternCode,
         // WHEN MATCHED SET
-        input.patternName,
+        encodedName,
         input.category,
         input.sqlTemplate,
         input.sqlTemplateMysql ?? null,
         input.sqlTemplateOracle ?? null,
         applicableTablesVal,
-        input.description,
-        input.exampleInput ?? null,
+        encodedDesc,
+        encodedExample,
         // WHEN NOT MATCHED INSERT VALUES
         patternCode,
-        input.patternName,
+        encodedName,
         input.category,
         input.sqlTemplate,
         input.sqlTemplateMysql ?? null,
@@ -151,9 +165,10 @@ export async function queryPatternAdd(
         applicableTablesVal,
         70,
         100,
-        input.description,
-        input.exampleInput ?? null,
+        encodedDesc,
+        encodedExample,
       ];
+      await entry.knex.raw(mergedSql, bindings);
     } else {
       bindings = [
         patternCode,
@@ -168,19 +183,24 @@ export async function queryPatternAdd(
         input.description,
         input.exampleInput ?? null,
       ];
+      await entry.knex.raw(insertDef.sql, bindings);
     }
-
-    await entry.knex.raw(insertDef.sql, bindings);
 
     // 키워드 등록
     const kwDef = config.queries.queryPatternKeywordInsert;
     if (kwDef && input.keywords && input.keywords.length > 0) {
+      const charset = dbType === 'oracle' ? entry.params.oracleDataCharset : undefined;
       for (const keyword of input.keywords) {
-        const kwBindings: unknown[] =
-          dbType === 'oracle'
-            ? [patternCode, keyword, patternCode, keyword]
-            : [patternCode, keyword];
-        await entry.knex.raw(kwDef.sql, kwBindings);
+        const kwSql = dbType === 'oracle'
+          ? resolveOracleTextBind(kwDef.sql, charset)
+          : kwDef.sql;
+        const encodedKw = dbType === 'oracle' && charset
+          ? encodeForOracle(keyword, charset)
+          : keyword;
+        const kwBindings: unknown[] = dbType === 'oracle'
+          ? [patternCode, encodedKw, patternCode, encodedKw]
+          : [patternCode, keyword];
+        await entry.knex.raw(kwSql, kwBindings);
       }
     }
 
