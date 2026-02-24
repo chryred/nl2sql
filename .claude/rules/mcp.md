@@ -17,7 +17,7 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `nl2sql_query`           | 자연어 → SQL 변환 및 실행 (`sql` 파라미터로 AI 재호출 스킵 가능) |
 | `cache_status`           | 메타데이터 캐시 상태 조회                               |
 | `cache_refresh`          | 메타데이터 + 스키마 캐시 새로고침 (Docker 재기동 불필요) |
-| `infer_relationships`    | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론          |
+| `infer_relationships`    | FK 관계 추론 (naming_convention: 패턴 기반 MEDIUM신뢰도, column_match: LLM 기반 추론) |
 | `auto_generate_comments` | 미설정 테이블/컬럼 코멘트 AI 자동 생성 (preview/apply)  |
 | `query_pattern_add`      | 자주 사용하는 쿼리 패턴 등록 (DB 저장 + 캐시 자동 갱신) |
 | `query_pattern_search`   | 패턴명/설명 키워드로 쿼리 패턴 검색 및 조회             |
@@ -45,6 +45,14 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.10.0
+
+- `infer_relationships`: `column_match` 타입을 LLM 기반 추론으로 교체 (DBA 관점 프롬프트)
+- 스키마 + 메타데이터(용어집, 네이밍 컨벤션) 전달로 FK 추론 정확도 향상
+- LLM 추론 결과에 `relationship_type`, `join_hint`, 한글 `description` 포함
+- MCP 응답 간소화: preview/apply 모두 카운트만 반환 (토큰 절감)
+- `formatMetadataForPrompt()` table_relationships에 schema prefix 추가
 
 ### v1.9.0
 

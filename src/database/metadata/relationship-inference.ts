@@ -80,15 +80,6 @@ interface ColumnInfo {
   dataType: string;
 }
 
-/**
- * PK/UK 컬럼 정보
- */
-interface ConstraintColumnInfo {
-  tableSchema: string;
-  tableName: string;
-  columnName: string;
-  constraintType: string;
-}
 
 // =============================================================================
 // 복수형 변환 유틸리티
@@ -226,33 +217,6 @@ async function fetchColumns(
   );
 }
 
-/**
- * PK/UK 제약조건이 있는 컬럼을 조회합니다.
- */
-async function fetchConstraintColumns(
-  knex: Knex,
-  dbType: DatabaseType,
-  schema?: string
-): Promise<ConstraintColumnInfo[]> {
-  const config = loadMetadataQueries(dbType);
-  const queryDef = config.queries.inferenceConstraints;
-  if (!queryDef) {
-    throw new Error(`inferenceConstraints query not defined for ${dbType}`);
-  }
-
-  const { sql, bindings } = buildSchemaFilter(
-    queryDef,
-    schema
-  );
-  const result = await knex.raw(sql, bindings);
-  const rows: Record<string, unknown>[] =
-    dbType === 'oracle' ? result : (result.rows ?? result);
-
-  return mapQueryResults<ConstraintColumnInfo>(
-    Array.isArray(rows) ? rows : [],
-    queryDef.mapping
-  );
-}
 
 // =============================================================================
 // 추론 핵심 로직
@@ -290,20 +254,6 @@ function buildColumnSet(
   return set;
 }
 
-/**
- * PK/UK Set을 구축합니다.
- */
-function buildConstraintSet(
-  constraints: ConstraintColumnInfo[]
-): Set<string> {
-  const set = new Set<string>();
-  for (const c of constraints) {
-    set.add(
-      `${c.tableSchema.toLowerCase()}.${c.tableName.toLowerCase()}.${c.columnName.toLowerCase()}`
-    );
-  }
-  return set;
-}
 
 /**
  * 기존 관계 중복 확인을 위한 Set을 구축합니다.
@@ -529,87 +479,6 @@ function buildFKInferencePrompt(
   return sections.join('\n\n');
 }
 
-/**
- * 동일 컬럼명 기반으로 관계를 추론합니다.
- *
- * @param columns - DB 컬럼 목록
- * @param existingSet - 기존 관계 Set
- * @param constraintSet - PK/UK 제약조건 Set
- * @returns 추론된 관계 후보
- */
-function inferByColumnMatch(
-  columns: ColumnInfo[],
-  existingSet: Set<string>,
-  constraintSet: Set<string>
-): InferredRelationship[] {
-  const candidates: InferredRelationship[] = [];
-  const seen = new Set<string>();
-
-  // 컬럼명으로 그룹화
-  const columnGroups = new Map<string, ColumnInfo[]>();
-  for (const col of columns) {
-    const key = col.columnName.toLowerCase();
-    if (!columnGroups.has(key)) {
-      columnGroups.set(key, []);
-    }
-    columnGroups.get(key)!.push(col);
-  }
-
-  for (const [, group] of columnGroups) {
-    // 2개 이상 테이블에 존재하는 컬럼만
-    if (group.length < 2) continue;
-
-    // PK/UK를 가진 컬럼과 아닌 컬럼을 분리
-    const pkSide: ColumnInfo[] = [];
-    const fkSide: ColumnInfo[] = [];
-
-    for (const col of group) {
-      const key = `${col.tableSchema.toLowerCase()}.${col.tableName.toLowerCase()}.${col.columnName.toLowerCase()}`;
-      if (constraintSet.has(key)) {
-        pkSide.push(col);
-      } else {
-        fkSide.push(col);
-      }
-    }
-
-    // PK가 있는 쪽과 FK 쪽을 매핑
-    for (const fk of fkSide) {
-      for (const pk of pkSide) {
-        // 같은 테이블 제외
-        if (
-          fk.tableSchema.toLowerCase() === pk.tableSchema.toLowerCase() &&
-          fk.tableName.toLowerCase() === pk.tableName.toLowerCase()
-        ) {
-          continue;
-        }
-
-        // 데이터 타입 호환성 확인 (동일 타입만)
-        if (fk.dataType.toLowerCase() !== pk.dataType.toLowerCase()) continue;
-
-        const relKey =
-          `${fk.tableSchema.toLowerCase()}.${fk.tableName.toLowerCase()}.${fk.columnName.toLowerCase()}` +
-          `→${pk.tableSchema.toLowerCase()}.${pk.tableName.toLowerCase()}.${pk.columnName.toLowerCase()}`;
-
-        if (existingSet.has(relKey) || seen.has(relKey)) continue;
-        seen.add(relKey);
-
-        candidates.push({
-          sourceSchema: fk.tableSchema,
-          sourceTable: fk.tableName,
-          sourceColumn: fk.columnName,
-          targetSchema: pk.tableSchema,
-          targetTable: pk.tableName,
-          targetColumn: pk.columnName,
-          confidenceLevel: 'LOW',
-          inferenceType: 'column_match',
-          description: `동일 컬럼명 기반 추론: ${fk.tableName}.${fk.columnName} → ${pk.tableName}.${pk.columnName}`,
-        });
-      }
-    }
-  }
-
-  return candidates;
-}
 
 /**
  * LLM 기반으로 FK 관계를 추론합니다.
