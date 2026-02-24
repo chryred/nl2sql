@@ -424,7 +424,7 @@ export class InteractiveSession {
         }
       }
       if (cmList.length > 0) {
-        console.log(chalk.bold(`\nColumn Match (LOW): ${cmList.length}건`));
+        console.log(chalk.bold(`\nLLM Inference (column_match): ${cmList.length}건`));
         for (const c of cmList) {
           console.log(`  ${c.sourceTable}.${c.sourceColumn} → ${c.targetTable}.${c.targetColumn}`);
         }

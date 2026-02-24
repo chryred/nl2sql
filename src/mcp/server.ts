@@ -187,7 +187,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
         'Infer FK relationships from naming conventions and column name matching. ' +
         'Use mode=preview to see candidates, mode=apply to insert into table_relationships. ' +
         'naming_convention type produces MEDIUM confidence (auto-active), ' +
-        'column_match type produces LOW confidence (manual review needed).',
+        'column_match type uses LLM-based inference (HIGH/MEDIUM/LOW confidence, auto-active).',
       inputSchema: inferRelationshipsInputSchema,
     },
     async (args) => {

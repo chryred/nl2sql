@@ -37,7 +37,7 @@ export const inferRelationshipsInputSchema = z.object({
     .array(z.enum(['naming_convention', 'column_match']))
     .optional()
     .describe(
-      'Inference types to run (default: both). naming_convention=MEDIUM confidence, column_match=LOW confidence'
+      'Inference types to run (default: both). naming_convention=pattern-based MEDIUM confidence, column_match=LLM-based inference (auto-active)'
     ),
   schema: z
     .string()

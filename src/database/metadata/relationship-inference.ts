@@ -572,7 +572,11 @@ export async function inferByLLM(
       confidenceRaw === 'MEDIUM' ? 'MEDIUM' : 'LOW';
 
     const relType = String(r['relationship_type'] ?? 'MANY_TO_ONE') as RelationshipType;
-    const joinH   = String(r['join_hint'] ?? 'LEFT') as JoinHint;
+    const validJoinHints = ['INNER', 'LEFT', 'RIGHT'] as const;
+    const rawJoinHint = String(r['join_hint'] ?? 'LEFT').toUpperCase();
+    const joinH: JoinHint = (validJoinHints as readonly string[]).includes(rawJoinHint)
+      ? (rawJoinHint as JoinHint)
+      : 'LEFT';
 
     candidates.push({
       sourceSchema,
