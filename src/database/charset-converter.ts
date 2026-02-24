@@ -142,3 +142,39 @@ export function createPostProcessResponse(
 export function convertResultRows<T>(rows: T[], charset: string): T[] {
   return rows.map((row) => convertDeep(row, charset) as T);
 }
+
+/**
+ * Oracle YAML SQL의 {{BIND_TEXT}} 플레이스홀더를 charset 유무에 따라 치환합니다.
+ *
+ * charset이 있으면 → UTL_RAW.CAST_TO_VARCHAR2(HEXTORAW(?))
+ * charset이 없으면 → ?
+ *
+ * 관련 값은 반드시 encodeForOracle()로 인코딩해야 합니다.
+ *
+ * @param sql - {{BIND_TEXT}} 플레이스홀더를 포함한 SQL 문자열
+ * @param charset - Oracle 데이터 인코딩 (예: 'ms949')
+ * @returns 치환된 SQL 문자열
+ */
+export function resolveOracleTextBind(sql: string, charset?: string): string {
+  const binding = charset
+    ? 'UTL_RAW.CAST_TO_VARCHAR2(HEXTORAW(?))'
+    : '?';
+  return sql.replace(/\{\{BIND_TEXT\}\}/g, binding);
+}
+
+/**
+ * Oracle YAML SQL의 {{NATURAL_QUERY_SELECT}} 플레이스홀더를 charset 유무에 따라 치환합니다.
+ *
+ * charset이 있으면 → UTL_RAW.CAST_TO_RAW(natural_query) AS natural_query
+ * charset이 없으면 → natural_query
+ *
+ * @param sql - {{NATURAL_QUERY_SELECT}} 플레이스홀더를 포함한 SQL 문자열
+ * @param charset - Oracle 데이터 인코딩 (예: 'ms949')
+ * @returns 치환된 SQL 문자열
+ */
+export function resolveOracleNaturalQuerySelect(sql: string, charset?: string): string {
+  const col = charset
+    ? 'UTL_RAW.CAST_TO_RAW(natural_query) AS natural_query'
+    : 'natural_query';
+  return sql.replace(/\{\{NATURAL_QUERY_SELECT\}\}/g, col);
+}
