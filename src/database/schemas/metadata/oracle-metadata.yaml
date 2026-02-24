@@ -470,7 +470,7 @@ queries:
 
   queryHistoryListRecent:
     sql: |
-      SELECT id, natural_query, generated_sql, connection_id,
+      SELECT id, {{NATURAL_QUERY_SELECT}}, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
       FROM query_history
       ORDER BY last_used_at DESC
@@ -479,7 +479,7 @@ queries:
 
   queryHistoryListFrequent:
     sql: |
-      SELECT id, natural_query, generated_sql, connection_id,
+      SELECT id, {{NATURAL_QUERY_SELECT}}, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
       FROM query_history
       ORDER BY usage_count DESC, last_used_at DESC
@@ -488,7 +488,7 @@ queries:
 
   queryHistorySearch:
     sql: |
-      SELECT id, natural_query, generated_sql, connection_id,
+      SELECT id, {{NATURAL_QUERY_SELECT}}, generated_sql, connection_id,
              executed, usage_count, last_used_at, created_at
       FROM query_history
       WHERE UPPER(natural_query) LIKE UPPER(?)
@@ -498,7 +498,7 @@ queries:
 
   queryHistoryGetById:
     sql: |
-      SELECT id, natural_query, generated_sql, connection_id,
+      SELECT id, {{NATURAL_QUERY_SELECT}}, generated_sql, connection_id,
              executed, usage_count, last_used_at
       FROM query_history
       WHERE id = ?
