@@ -7,8 +7,9 @@ export class DevX implements AIProvider {
   private agentCode: string;
   private agentCodeMap = new Map<string, string>([
     ['playground', 'playground'],
-    ['nl2sql_rel_table', 'custom_e81685f388d442548dce9b49ebad037e'], // 백화점CX팀_자연어기반 연관 테이블 조회
-    ['nl2sql_query', 'custom_170def4091144a45a99eb302458321ed'], // 백화점CX팀_자연어기반 SQL생성기
+    ['nl2sql_infer_fk', 'custom_8de2c75456004a7f84b9b9d5d0a60c21'],   // 백화점CX팀_FK 정보 추론 프롬프트
+    ['nl2sql_rel_table', 'custom_e81685f388d442548dce9b49ebad037e'],  // 백화점CX팀_자연어기반 연관 테이블 조회
+    ['nl2sql_query', 'custom_170def4091144a45a99eb302458321ed']       // 백화점CX팀_자연어기반 SQL생성기
   ]);
 
   constructor(apiKey: string, agentKey?: string) {
@@ -16,9 +17,9 @@ export class DevX implements AIProvider {
     this.agentCode = this.agentCodeMap.get(agentKey || 'playground')!;
   }
 
-  // 테이블/컬럼 주석 추론 모델
+  // 테이블/컬럼을 통한 FK정보 생성기
   async generate(systemPrompt: string, userPrompt: string): Promise<string> {
-    this.agentCode = this.agentCodeMap.get('playground')!;
+    this.agentCode = this.agentCodeMap.get('nl2sql_rel_table')!;
 
     const combinedPrompt = `System: ${systemPrompt}\n\nUser: ${userPrompt}`;
     const response = await this.client.callAgent({
