@@ -11,7 +11,6 @@
 import { z } from 'zod';
 import {
   getConfig,
-  getAIConfig,
   validateConfig,
   type Config,
 } from '../../config/index.js';

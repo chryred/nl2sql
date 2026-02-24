@@ -11,7 +11,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ConnectionManager } from '../database/connection-manager.js';
 
-import { dbTestConnection, dbTestInputSchema } from './tools/db-test.js';
 import { dbConnect, dbConnectInputSchema } from './tools/db-connect.js';
 import {
   dbDisconnect,
@@ -71,28 +70,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     version: '1.5.0',
   });
 
-  // 1단계: db_test_connection - 환경변수 기반 연결 테스트
-  server.registerTool(
-    'db_test_connection',
-    {
-      description:
-        'Test database connection using environment variables. No parameters required.',
-      inputSchema: dbTestInputSchema,
-    },
-    async () => {
-      const result = await dbTestConnection();
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    }
-  );
-
-  // 2단계: db_connect - 자격증명으로 DB 접속 (connectionId 발급)
+  // 1단계: db_connect - 자격증명으로 DB 접속 (connectionId 발급)
   server.registerTool(
     'db_connect',
     {
@@ -114,7 +92,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 3단계: db_list_connections - 활성 연결 목록 확인
+  // 2단계: db_list_connections - 활성 연결 목록 확인
   server.registerTool(
     'db_list_connections',
     {
@@ -134,7 +112,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 4단계: schema_setup - NL2SQL 메타 스키마 초기 설정 (최초 1회)
+  // 3단계: schema_setup - NL2SQL 메타 스키마 초기 설정 (최초 1회)
   server.registerTool(
     'schema_setup',
     {
@@ -158,7 +136,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 5단계: cache_status - 메타데이터 캐시 상태 확인
+  // 4단계: cache_status - 메타데이터 캐시 상태 확인
   server.registerTool(
     'cache_status',
     {
@@ -180,7 +158,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 6단계: cache_refresh - 메타데이터 캐시 새로고침 (Docker 재기동 불필요)
+  // 5단계: cache_refresh - 메타데이터 캐시 새로고침 (Docker 재기동 불필요)
   server.registerTool(
     'cache_refresh',
     {
@@ -202,7 +180,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 7단계: infer_relationships - 네이밍 패턴/컬럼명 기반 FK 관계 추론
+  // 6단계: infer_relationships - 네이밍 패턴/컬럼명 기반 FK 관계 추론
   server.registerTool(
     'infer_relationships',
     {
@@ -238,7 +216,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 8단계: query_pattern_add - 자주 사용하는 쿼리 패턴 등록
+  // 7단계: query_pattern_add - 자주 사용하는 쿼리 패턴 등록
   server.registerTool(
     'query_pattern_add',
     {
@@ -260,7 +238,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 9단계: query_pattern_search - 쿼리 패턴 키워드 검색
+  // 8단계: query_pattern_search - 쿼리 패턴 키워드 검색
   server.registerTool(
     'query_pattern_search',
     {
@@ -281,7 +259,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 10단계: auto_generate_comments - 미설정 테이블/컬럼 코멘트 자동 생성
+  // 9단계: auto_generate_comments - 미설정 테이블/컬럼 코멘트 자동 생성
   server.registerTool(
     'auto_generate_comments',
     {
@@ -312,7 +290,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 11단계: nl2sql_schema - DB 스키마 정보 조회
+  // 10단계: nl2sql_schema - DB 스키마 정보 조회
   server.registerTool(
     'nl2sql_schema',
     {
@@ -341,7 +319,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 12단계: nl2sql_query - 자연어 → SQL 변환 및 실행
+  // 11단계: nl2sql_query - 자연어 → SQL 변환 및 실행
   server.registerTool(
     'nl2sql_query',
     {
@@ -369,7 +347,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 13단계: query_history_list - 쿼리 이력 목록 조회
+  // 12단계: query_history_list - 쿼리 이력 목록 조회
   server.registerTool(
     'query_history_list',
     {
@@ -388,7 +366,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 14단계: query_history_search - 쿼리 이력 키워드 검색
+  // 13단계: query_history_search - 쿼리 이력 키워드 검색
   server.registerTool(
     'query_history_search',
     {
@@ -407,7 +385,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 15단계: query_history_register - 이력 → query_patterns 승격 (북마크)
+  // 14단계: query_history_register - 이력 → query_patterns 승격 (북마크)
   server.registerTool(
     'query_history_register',
     {
@@ -426,7 +404,7 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     }
   );
 
-  // 16단계: db_disconnect - 연결 해제 및 리소스 반환
+  // 15단계: db_disconnect - 연결 해제 및 리소스 반환
   server.registerTool(
     'db_disconnect',
     {
