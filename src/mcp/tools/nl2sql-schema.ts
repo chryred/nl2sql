@@ -117,7 +117,8 @@ export async function nl2sqlSchema(
     try {
       const config = buildConfigFromEntry(entry);
 
-      const schema = await extractSchema(entry.knex, config);
+      const schema = await connManager.getOrInitSchemaCache(entry.connectionId, config)
+        ?? await extractSchema(entry.knex, config);
       const data = formatSchema(schema, input.format);
 
       return {
