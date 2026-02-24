@@ -320,7 +320,7 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 | `nl2sql_schema`          | 스키마 조회 (json/prompt/summary 형식)                         |
 | `nl2sql_query`           | 자연어 → SQL 변환 및 선택적 실행                               |
 | `cache_status`           | 메타데이터 캐시 상태 조회                                      |
-| `cache_refresh`          | 메타데이터 캐시 새로고침 (Docker 재기동 불필요)                |
+| `cache_refresh`          | 메타데이터 + 스키마 캐시 새로고침 (Docker 재기동 불필요)       |
 | `schema_setup`           | 메타데이터 테이블 자동 생성 (사용자 확인 필수)                 |
 | `infer_relationships`    | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론 (preview/apply) |
 | `auto_generate_comments` | 미설정 테이블/컬럼 코멘트 AI 자동 생성 (preview/apply)         |
@@ -543,6 +543,14 @@ nl2sql_ts/
 | Container  | Docker, Docker Compose        |
 
 ## Version History
+
+### v1.8.0
+
+- **연결별 스키마 캐시**: `ConnectionManager`가 메타데이터와 동일하게 DB 스키마를 연결별로 캐싱
+- MCP 모드에서 동일 연결에 대한 반복 `nl2sql_query` / `nl2sql_schema` 요청 시 스키마 재추출 없음
+- `cache_refresh` 도구가 메타데이터 캐시와 스키마 캐시를 동시에 초기화
+- `db_list_connections` 응답에 `hasCachedSchema` 필드 추가
+- CLI 모드 동작 변경 없음 (하위 호환 유지)
 
 ### v1.5.1
 

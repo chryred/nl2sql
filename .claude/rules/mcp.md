@@ -16,7 +16,7 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `nl2sql_schema`          | 스키마 조회 (json/prompt/summary)                       |
 | `nl2sql_query`           | 자연어 → SQL 변환 및 실행 (`sql` 파라미터로 AI 재호출 스킵 가능) |
 | `cache_status`           | 메타데이터 캐시 상태 조회                               |
-| `cache_refresh`          | 메타데이터 캐시 새로고침 (Docker 재기동 불필요)         |
+| `cache_refresh`          | 메타데이터 + 스키마 캐시 새로고침 (Docker 재기동 불필요) |
 | `infer_relationships`    | 네이밍 패턴/동일 컬럼명 기반 FK 관계 자동 추론          |
 | `auto_generate_comments` | 미설정 테이블/컬럼 코멘트 AI 자동 생성 (preview/apply)  |
 | `query_pattern_add`      | 자주 사용하는 쿼리 패턴 등록 (DB 저장 + 캐시 자동 갱신) |
@@ -45,6 +45,13 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.8.0
+
+- **연결별 스키마 캐시**: `ConnectionManager`가 DB 스키마를 연결별로 캐싱 (메타데이터 캐시와 동일 패턴)
+- `nl2sql_query`, `nl2sql_schema`: 동일 연결의 반복 요청 시 스키마 재추출 없음 (캐시 히트)
+- `cache_refresh`: 메타데이터 + 스키마 캐시 동시 초기화 (`invalidateOnly` 포함)
+- `db_list_connections` 응답에 `hasCachedSchema` 필드 추가
 
 ### v1.7.0
 
