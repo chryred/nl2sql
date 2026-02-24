@@ -670,10 +670,16 @@ export async function applyInferredRelationships(
 
   for (const c of candidates) {
     try {
-      const isActive = c.confidenceLevel === 'MEDIUM' ? true : false;
-      const createdBy = c.inferenceType === 'naming_convention'
-        ? 'naming_convention'
-        : 'column_match';
+      let isActive: boolean;
+      let createdBy: string;
+      if (c.inferenceType === 'naming_convention') {
+        isActive = c.confidenceLevel === 'MEDIUM';
+        createdBy = 'naming_convention';
+      } else {
+        // LLM 기반 추론 (column_match 타입)
+        isActive = true;
+        createdBy = 'llm_inference';
+      }
 
       const inserted = await upsertRelationship(
         knex,
