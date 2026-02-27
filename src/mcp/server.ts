@@ -74,7 +74,8 @@ export function createMcpServer(connManager: ConnectionManager): McpServer {
     'db_connect',
     {
       description:
-        'Connect to a database with provided credentials. Returns connectionId for subsequent tool calls.',
+        'Connect to a database with provided credentials. Returns connectionId for subsequent tool calls. ' +
+        'Ask for parameters in this order: systemName first, then type, host, port, user, password, database.',
       inputSchema: dbConnectInputSchema,
     },
     async (args) => {

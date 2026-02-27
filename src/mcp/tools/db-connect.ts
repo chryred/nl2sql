@@ -16,7 +16,7 @@ import type { ConnectionManager } from '../../database/connection-manager.js';
  * db_connect 도구의 입력 스키마
  */
 export const dbConnectInputSchema = z.object({
-  systemName: z.string().min(1).describe('System name to identify this connection (e.g., 고객경험, 주문관리)'),
+  systemName: z.string().min(1).describe('[Ask this FIRST] System name to identify this connection (e.g., 고객경험, 주문관리)'),
   type: z.enum(['postgresql', 'mysql', 'oracle']).describe('Database type'),
   host: z.string().min(1).describe('Database host'),
   port: z
