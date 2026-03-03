@@ -57,7 +57,7 @@ describe('NL2SQLEngine.process - oracle UTL_RAW wrapping', () => {
       generateComment: jest.fn(),
     };
 
-    const engine = new NL2SQLEngine(mockKnex, oracleConfig, { schemaCache: mockSchema });
+    const engine = new NL2SQLEngine(mockKnex, oracleConfig, { schemaCache: mockSchema, metadataCache: null });
     (engine as any).aiClient = mockAiClient;
 
     const result = await engine.process('고객 이름 조회', true);
@@ -77,7 +77,7 @@ describe('NL2SQLEngine.process - oracle UTL_RAW wrapping', () => {
       generateComment: jest.fn(),
     };
 
-    const engine = new NL2SQLEngine(mockKnex, oracleConfig, { schemaCache: mockSchema });
+    const engine = new NL2SQLEngine(mockKnex, oracleConfig, { schemaCache: mockSchema, metadataCache: null });
     (engine as any).aiClient = mockAiClient;
 
     const result = await engine.process('고객 이름 조회', false);
@@ -100,7 +100,7 @@ describe('NL2SQLEngine.process - oracle UTL_RAW wrapping', () => {
       generateComment: jest.fn(),
     };
 
-    const engine = new NL2SQLEngine(mockKnex, postgresConfig, { schemaCache: mockSchema });
+    const engine = new NL2SQLEngine(mockKnex, postgresConfig, { schemaCache: mockSchema, metadataCache: null });
     (engine as any).aiClient = mockAiClient;
 
     const result = await engine.process('고객 이름 조회', true);
