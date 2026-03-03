@@ -24,6 +24,7 @@ import {
   buildPrompt,
   buildTableSelectionPrompt,
   parseSelectedTables,
+  buildOracleKoreanWrapPrompt,
 } from '../ai/prompt-builder.js';
 import { parseSQL, validateSQL } from '../ai/response-parser.js';
 import {
@@ -426,6 +427,32 @@ export class NL2SQLEngine {
     return selectedTables.length > 0
       ? filterSchemaByTables(schema, selectedTables)
       : schema;
+  }
+
+  /**
+   * Oracle 한글 깨짐 방지를 위해 한글 VARCHAR2 컬럼에 UTL_RAW.CAST_TO_RAW를 적용합니다.
+   *
+   * @description
+   * execute=true + oracleDataCharset 조합일 때 호출됩니다.
+   * LLM이 스키마를 참조하여 한글 VARCHAR2 컬럼을 판단하고 UTL_RAW로 래핑합니다.
+   * 실패 시 원본 SQL을 반환합니다 (graceful degradation).
+   *
+   * @param sql - 변환할 원본 SQL
+   * @returns UTL_RAW 적용된 SQL (변환 불필요 시 원본 반환)
+   */
+  async wrapOracleKoreanColumns(sql: string): Promise<string> {
+    const schema = await this.getSchema();
+    const charset = this.config.database.oracleDataCharset;
+    if (!charset) return sql;
+
+    const prompt = buildOracleKoreanWrapPrompt(sql, schema, charset);
+    try {
+      const response = await this.aiClient.generateSQL(prompt);
+      const transformed = parseSQL(response);
+      return transformed || sql;
+    } catch {
+      return sql;
+    }
   }
 
   /**
