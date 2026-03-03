@@ -388,7 +388,16 @@ export class NL2SQLEngine {
     const result: NL2SQLResult = { sql, schema };
 
     if (execute) {
-      result.executionResult = await this.executeSQL(sql);
+      const shouldWrap =
+        this.config.database.type === 'oracle' &&
+        !!this.config.database.oracleDataCharset;
+
+      const sqlToExecute = shouldWrap
+        ? await this.wrapOracleKoreanColumns(sql)
+        : sql;
+
+      result.executionResult = await this.executeSQL(sqlToExecute);
+      // result.sql always holds the original readable SQL
     }
 
     return result;
