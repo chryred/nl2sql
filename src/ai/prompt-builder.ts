@@ -74,16 +74,14 @@ function getDbSpecificNotes(dbType: DatabaseType, oracleDataCharset?: string): s
 - String comparison is case-insensitive by default`;
 
     case 'oracle': {
-      const charsetNote = oracleDataCharset
-        ? `\n- Character encoding: DB stores data as ${oracleDataCharset} (not UTF-8). For VARCHAR2 columns that may contain Korean text, ALWAYS wrap with UTL_RAW.CAST_TO_RAW(column) AS column_name in SELECT. Example: UTL_RAW.CAST_TO_RAW(customer_name) AS customer_name`
-        : '';
+      // charsetNote removed: UTL_RAW wrapping is now handled at execute-time by wrapOracleKoreanColumns()
       return `- Use Oracle-specific syntax (double quotes for case-sensitive identifiers)
 - Use appropriate Oracle functions (e.g., NVL, TO_CHAR, TO_DATE, DECODE, etc.)
 - Use FETCH FIRST n ROWS ONLY for limiting results (Oracle 12c+) or ROWNUM for older versions
 - Use || for string concatenation
 - NULL handling: NVL(column, default) or COALESCE
 - Date literals: DATE 'YYYY-MM-DD' or TO_DATE('YYYY-MM-DD', 'YYYY-MM-DD')
-- Use DUAL for queries without a table (e.g., SELECT SYSDATE FROM DUAL)${charsetNote}`;
+- Use DUAL for queries without a table (e.g., SELECT SYSDATE FROM DUAL)`;
     }
 
     default: // postgresql

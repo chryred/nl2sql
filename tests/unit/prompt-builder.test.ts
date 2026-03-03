@@ -215,7 +215,7 @@ describe('buildPrompt', () => {
       oracleDataCharset: 'ms949',
     });
     expect(result).toContain('data charset: ms949');
-    expect(result).toContain('UTL_RAW.CAST_TO_RAW');
+    expect(result).not.toContain('UTL_RAW.CAST_TO_RAW');
   });
 
   it('should NOT include charset info when oracleDataCharset is not provided', () => {
@@ -234,5 +234,42 @@ describe('buildPrompt', () => {
       dbType: 'postgresql',
     });
     expect(result).not.toContain('UTL_RAW');
+  });
+});
+
+describe('buildPrompt - oracle charset UTL_RAW behavior', () => {
+  const schema: SchemaInfo = {
+    tables: [
+      {
+        name: 'customers',
+        columns: [
+          { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명' },
+          { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID' },
+        ],
+        constraints: [],
+        indexes: [],
+      },
+    ],
+  };
+
+  it('should NOT include UTL_RAW instruction when oracleDataCharset is set (prompt is always UTL_RAW-free)', () => {
+    const prompt = buildPrompt({
+      tables: schema,
+      naturalLanguageQuery: '고객 이름 조회',
+      dbType: 'oracle',
+      oracleDataCharset: 'ms949',
+    });
+    expect(prompt).not.toContain('UTL_RAW.CAST_TO_RAW');
+    expect(prompt).not.toContain('ALWAYS wrap');
+  });
+
+  it('should still include charset info in dbType label when oracleDataCharset is set', () => {
+    const prompt = buildPrompt({
+      tables: schema,
+      naturalLanguageQuery: '고객 이름 조회',
+      dbType: 'oracle',
+      oracleDataCharset: 'ms949',
+    });
+    expect(prompt).toContain('ms949');
   });
 });
