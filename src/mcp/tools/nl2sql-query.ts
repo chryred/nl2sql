@@ -112,9 +112,18 @@ export async function nl2sqlQuery(
             error: `SQL validation failed: ${sqlValidation.error}`,
           };
         }
-        sql = input.sql;
+        sql = input.sql;  // output.sql은 원본 유지
+
         if (input.execute) {
-          executionResult = await engine.executeSQL(sql);
+          const shouldWrap =
+            entry.params.type === 'oracle' &&
+            !!entry.params.oracleDataCharset;
+
+          const sqlToExecute = shouldWrap
+            ? await engine.wrapOracleKoreanColumns(sql)
+            : sql;
+
+          executionResult = await engine.executeSQL(sqlToExecute);
         }
       } else {
         // 기존 flow: 자연어 → AI → SQL → 선택적 실행
@@ -187,7 +196,6 @@ async function nl2sqlQueryLegacy(
     let executionResult: unknown[] | undefined;
 
     if (input.sql) {
-      // 이미 생성된 SQL이 있으면 AI 호출 스킵
       const sqlValidation = validateSQL(input.sql);
       if (!sqlValidation.valid) {
         return {
@@ -195,9 +203,18 @@ async function nl2sqlQueryLegacy(
           error: `SQL validation failed: ${sqlValidation.error}`,
         };
       }
-      sql = input.sql;
+      sql = input.sql;  // output.sql은 원본 유지
+
       if (input.execute) {
-        executionResult = await engine.executeSQL(sql);
+        const shouldWrap =
+          config.database.type === 'oracle' &&
+          !!config.database.oracleDataCharset;
+
+        const sqlToExecute = shouldWrap
+          ? await engine.wrapOracleKoreanColumns(sql)
+          : sql;
+
+        executionResult = await engine.executeSQL(sqlToExecute);
       }
     } else {
       // 기존 flow: 자연어 → AI → SQL → 선택적 실행
