@@ -22,7 +22,7 @@ export function extractTablesFromSQL(sql: string): string[] {
 
   // Step 1: CTE 이름 수집 — 실제 테이블이 아니므로 결과에서 제외
   const cteNames = new Set<string>();
-  const cteRe = /\bWITH\s+([\w$]+)\s+AS\s*\(/gi;
+  const cteRe = /(?:\bWITH\b|,)\s*([\w$]+)\s+AS\s*\(/gi;
   let m: RegExpExecArray | null;
   while ((m = cteRe.exec(normalized)) !== null) {
     cteNames.add(m[1].toLowerCase());

@@ -59,8 +59,19 @@ describe('extractTablesFromSQL', () => {
   });
 
   it('유효한 테이블이 없으면 빈 배열 반환', () => {
-    const sql = 'SELECT SYSDATE FROM DUAL';
-    const result = extractTablesFromSQL(sql);
-    expect(Array.isArray(result)).toBe(true);
+    const sql = 'SELECT 1';
+    expect(extractTablesFromSQL(sql)).toEqual([]);
+  });
+
+  it('다중 CTE 이름 모두 제외', () => {
+    const sql = `
+      WITH cte_a AS (SELECT * FROM users),
+           cte_b AS (SELECT * FROM orders)
+      SELECT * FROM cte_a JOIN cte_b ON cte_a.id = cte_b.user_id
+    `;
+    const result = extractTablesFromSQL(sql).sort();
+    expect(result).toEqual(['orders', 'users'].sort());
+    expect(result).not.toContain('cte_a');
+    expect(result).not.toContain('cte_b');
   });
 });
