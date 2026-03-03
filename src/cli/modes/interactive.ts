@@ -401,11 +401,19 @@ export class InteractiveSession {
       const namingConventions = cache?.namingConventions ?? [];
       const existingRelationships = cache?.relationships ?? [];
 
+      // 스키마 조회 (naming_convention, column_match 공통 사용)
+      let schemaTables: import('../../database/types.js').ExtendedTableInfo[] = [];
+      try {
+        const schema = await this.engine.getSchema();
+        schemaTables = schema.tables;
+      } catch {
+        spinner.warn('스키마 조회 실패 - 추론 정확도가 낮을 수 있습니다.');
+      }
+
       const candidates = await inferRelationships(
-        this.knex,
-        this.config.database.type,
         namingConventions,
-        existingRelationships
+        existingRelationships,
+        { schemaTables }
       );
       spinner.succeed(`${candidates.length}개 관계 후보 발견`);
 

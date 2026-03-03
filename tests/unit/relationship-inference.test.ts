@@ -22,7 +22,6 @@ jest.unstable_mockModule('../../src/database/charset-converter.js', () => ({
 /* eslint-disable @typescript-eslint/no-explicit-any */
 let pluralize: any;
 let singularize: any;
-let buildSchemaFilter: any;
 let loadMetadataQueries: any;
 let inferByLLM: any;
 
@@ -33,7 +32,6 @@ describe('relationship-inference', () => {
     );
     pluralize = inference.pluralize;
     singularize = inference.singularize;
-    buildSchemaFilter = inference.buildSchemaFilter;
 
     const queryLoader = await import(
       '../../src/database/metadata/query-loader.js'
@@ -103,58 +101,6 @@ describe('relationship-inference', () => {
       // 'user' doesn't end in 's', so no candidates
       const result = singularize('user');
       expect(result).toHaveLength(0);
-    });
-  });
-
-  describe('buildSchemaFilter', () => {
-    it('should generate schema-specific filter when schema is provided', () => {
-      const queryDef = {
-        sql: 'SELECT * FROM t WHERE 1=1 {{SCHEMA_FILTER}}',
-        mapping: {},
-        systemSchemas: ['pg_catalog', 'information_schema'],
-        schemaFilterColumn: 'c.table_schema',
-      };
-
-      const result = buildSchemaFilter(queryDef, 'public');
-      expect(result.sql).toContain('AND c.table_schema = ?');
-      expect(result.bindings).toEqual(['public']);
-    });
-
-    it('should generate NOT IN filter when schema is not provided', () => {
-      const queryDef = {
-        sql: 'SELECT * FROM t WHERE 1=1 {{SCHEMA_FILTER}}',
-        mapping: {},
-        systemSchemas: ['pg_catalog', 'information_schema'],
-        schemaFilterColumn: 'c.table_schema',
-      };
-
-      const result = buildSchemaFilter(queryDef);
-      expect(result.sql).toContain('AND c.table_schema NOT IN (?,?)');
-      expect(result.bindings).toEqual(['pg_catalog', 'information_schema']);
-    });
-
-    it('should use default filter column when schemaFilterColumn is missing', () => {
-      const queryDef = {
-        sql: 'SELECT * FROM t WHERE 1=1 {{SCHEMA_FILTER}}',
-        mapping: {},
-        systemSchemas: [],
-      };
-
-      const result = buildSchemaFilter(queryDef, 'myschema');
-      expect(result.sql).toContain('AND table_schema = ?');
-    });
-
-    it('should handle empty systemSchemas without schema', () => {
-      const queryDef = {
-        sql: 'SELECT * FROM t WHERE 1=1 {{SCHEMA_FILTER}}',
-        mapping: {},
-        systemSchemas: [],
-        schemaFilterColumn: 's.TABLE_SCHEMA',
-      };
-
-      const result = buildSchemaFilter(queryDef);
-      expect(result.sql).toContain('AND s.TABLE_SCHEMA NOT IN ()');
-      expect(result.bindings).toEqual([]);
     });
   });
 

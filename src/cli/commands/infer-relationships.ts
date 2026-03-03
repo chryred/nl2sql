@@ -62,10 +62,21 @@ export async function inferRelationshipsCommand(
   const namingConventions = cache?.namingConventions ?? [];
   const existingRelationships = cache?.relationships ?? [];
 
-  // column_match 타입에 필요한 AI provider 및 스키마 테이블 준비
-  const needsLLM = !types || types.includes('column_match');
+  // 스키마 조회 (naming_convention, column_match 공통 사용)
+  const schemaSpinner = ora('스키마 조회 중...').start();
+  let schemaTables: import('../../database/types.js').ExtendedTableInfo[] = [];
+  try {
+    const engine = new NL2SQLEngine(knex, config);
+    const schema = await engine.getSchema();
+    schemaTables = schema.tables;
+    schemaSpinner.succeed(`스키마 조회 완료 (${schemaTables.length}개 테이블)`);
+  } catch {
+    schemaSpinner.warn('스키마 조회 실패 - 추론 정확도가 낮을 수 있습니다.');
+  }
 
+  // AI provider (column_match 타입에 필요)
   let aiProvider;
+  const needsLLM = !types || types.includes('column_match');
   if (needsLLM) {
     try {
       aiProvider = createAIClient(config);
@@ -74,31 +85,16 @@ export async function inferRelationshipsCommand(
     }
   }
 
-  let schemaTables: import('../../database/types.js').ExtendedTableInfo[] = [];
-  if (needsLLM) {
-    const schemaSpinner = ora('스키마 조회 중...').start();
-    try {
-      const engine = new NL2SQLEngine(knex, config);
-      const schema = await engine.getSchema();
-      schemaTables = schema.tables;
-      schemaSpinner.succeed(`스키마 조회 완료 (${schemaTables.length}개 테이블)`);
-    } catch {
-      schemaSpinner.warn('스키마 조회 실패 - column_match 정확도가 낮을 수 있습니다.');
-    }
-  }
-
   // 추론 실행
   const inferSpinner = ora('FK 관계 추론 중...').start();
   const candidates = await inferRelationships(
-    knex,
-    config.database.type,
     namingConventions,
     existingRelationships,
     {
       schema: options.schema,
       types,
-      aiProvider,
       schemaTables,
+      aiProvider,
       metadata: cache ?? undefined,
     }
   );

@@ -103,15 +103,13 @@ export async function inferRelationshipsTool(
 
     // 추론 실행
     const candidates = await inferRelationships(
-      entry.knex,
-      entry.params.type,
       namingConventions,
       existingRelationships,
       {
         schema: input.schema,
         types: input.types,
-        aiProvider,
         schemaTables,
+        aiProvider,
         metadata,
       }
     );

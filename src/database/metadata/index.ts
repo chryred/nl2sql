@@ -60,7 +60,6 @@ export type { SchemaSetupResult, TableSetupResult } from './schema-setup.js';
 export {
   inferRelationships,
   applyInferredRelationships,
-  buildSchemaFilter,
   pluralize,
   singularize,
 } from './relationship-inference.js';
