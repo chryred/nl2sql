@@ -451,14 +451,16 @@ export class NL2SQLEngine {
    * @returns UTL_RAW 적용된 SQL (변환 불필요 시 원본 반환)
    */
   async wrapOracleKoreanColumns(sql: string): Promise<string> {
-
+    const schema = await this.getSchema();
     const charset = this.config.database.oracleDataCharset;
     if (!charset) return sql;
-    
-    const tables = extractTablesFromSQL(sql);
-    const schema = filterSchemaByTables(await this.getSchema(), tables);
 
-    const prompt = buildOracleKoreanWrapPrompt(sql, schema, charset);
+    // SQL에서 참조 테이블만 추출하여 스키마 필터링 (토큰 절감)
+    const tableNames = extractTablesFromSQL(sql);
+    const filteredSchema =
+      tableNames.length > 0 ? filterSchemaByTables(schema, tableNames) : schema;
+
+    const prompt = buildOracleKoreanWrapPrompt(sql, filteredSchema, charset);
     try {
       const response = await this.aiClient.generateSQL(prompt);
       const transformed = parseSQL(response);

@@ -104,4 +104,51 @@ describe('NL2SQLEngine.wrapOracleKoreanColumns', () => {
     expect(result).toBe(originalSql);
     expect(mockAiClient.generateSQL).not.toHaveBeenCalled();
   });
+
+  it('should pass only SQL-referenced tables schema to wrap prompt (not full schema)', async () => {
+    // 전체 스키마에는 customers와 unrelated_table 두 테이블이 있음
+    const fullSchema: SchemaInfo = {
+      tables: [
+        {
+          name: 'customers',
+          columns: [
+            { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명' },
+            { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID' },
+          ],
+          constraints: [],
+          indexes: [],
+        },
+        {
+          name: 'unrelated_table',
+          columns: [
+            { name: 'some_col', type: 'VARCHAR2(200)', nullable: true, comment: '무관한 컬럼' },
+          ],
+          constraints: [],
+          indexes: [],
+        },
+      ],
+    };
+
+    const mockAiClient = {
+      generateSQL: jest.fn().mockResolvedValue(wrappedSql),
+      selectTables: jest.fn(),
+      generateInferFK: jest.fn(),
+      generateComment: jest.fn(),
+    };
+
+    // SQL: customers만 참조
+    const engine = new NL2SQLEngine(mockKnex, mockConfig, {
+      schemaCache: fullSchema,
+    });
+    (engine as any).aiClient = mockAiClient;
+
+    await engine.wrapOracleKoreanColumns(originalSql); // FROM customers
+
+    expect(mockAiClient.generateSQL).toHaveBeenCalledTimes(1);
+    const promptArg = mockAiClient.generateSQL.mock.calls[0][0] as string;
+    // 프롬프트에 customers 테이블 정보 포함
+    expect(promptArg).toContain('customers');
+    // 프롬프트에 unrelated_table 정보 미포함
+    expect(promptArg).not.toContain('unrelated_table');
+  });
 });
