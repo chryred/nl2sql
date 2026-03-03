@@ -46,6 +46,16 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 
 ## Version History
 
+### v1.11.0
+
+- Oracle `oracleDataCharset` 설정 시 UTL_RAW 처리 방식 개선 (execute-aware)
+- `execute=false` (dry-run): UTL_RAW 없는 가독성 좋은 SQL 반환
+- `execute=true` + `oracleDataCharset`: LLM이 SELECT/WHERE 한글 VARCHAR2 컬럼에 UTL_RAW.CAST_TO_RAW 자동 적용 후 실행
+- pre-supplied `sql` + `execute=true` + `oracleDataCharset`: 동일한 LLM 후처리 적용
+- `NL2SQLEngine.wrapOracleKoreanColumns()` 신규 메서드 추가 (graceful degradation: LLM 실패 시 원본 SQL fallback)
+- `buildOracleKoreanWrapPrompt()` 신규 프롬프트 빌더 함수 추가 (`src/ai/prompt-builder.ts`)
+- `output.sql` 필드는 항상 가독성 좋은 원본 SQL 반환 (UTL_RAW 버전 아님)
+
 ### v1.10.0
 
 - `infer_relationships`: `column_match` 타입을 LLM 기반 추론으로 교체 (DBA 관점 프롬프트)
