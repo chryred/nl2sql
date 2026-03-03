@@ -65,7 +65,7 @@ export interface PromptOptions {
  * @returns 데이터베이스별 SQL 가이드 텍스트
  * @private
  */
-function getDbSpecificNotes(dbType: DatabaseType, oracleDataCharset?: string): string {
+function getDbSpecificNotes(dbType: DatabaseType): string {
   switch (dbType) {
     case 'mysql':
       return `- Use MySQL-specific syntax (backticks for identifiers, LIMIT syntax, etc.)
@@ -290,7 +290,7 @@ function formatMetadataForPrompt(
 export function buildPrompt(options: PromptOptions): string {
   const { tables, naturalLanguageQuery, dbType, metadata, oracleDataCharset } = options;
   const schemaText = formatSchemaForPrompt(tables);
-  const dbSpecificNotes = getDbSpecificNotes(dbType, oracleDataCharset);
+  const dbSpecificNotes = getDbSpecificNotes(dbType);
   const performanceGuidelines = getPerformanceGuidelines(tables);
   const safetyGuidelines = getQuerySafetyGuidelines();
 
