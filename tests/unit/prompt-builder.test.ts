@@ -4,7 +4,7 @@
  * buildTableSelectionPrompt, parseSelectedTables 함수 테스트
  */
 
-import { buildTableSelectionPrompt, parseSelectedTables, buildPrompt } from '../../src/ai/prompt-builder.js';
+import { buildTableSelectionPrompt, parseSelectedTables, buildPrompt, buildOracleKoreanWrapPrompt } from '../../src/ai/prompt-builder.js';
 import type { SchemaInfo } from '../../src/database/schema-extractor.js';
 import type {
   GlossaryTerm,
@@ -270,6 +270,51 @@ describe('buildPrompt - oracle charset UTL_RAW behavior', () => {
       dbType: 'oracle',
       oracleDataCharset: 'ms949',
     });
+    expect(prompt).toContain('ms949');
+  });
+});
+
+describe('buildOracleKoreanWrapPrompt', () => {
+  const schema: SchemaInfo = {
+    tables: [
+      {
+        name: 'customers',
+        columns: [
+          { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명' },
+          { name: 'grade', type: 'VARCHAR2(10)', nullable: true, comment: '등급' },
+          { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID' },
+        ],
+        constraints: [],
+        indexes: [],
+      },
+    ],
+  };
+
+  const sql = "SELECT id, customer_name, grade FROM customers WHERE grade = 'VIP'";
+
+  it('should include the original SQL in prompt', () => {
+    const prompt = buildOracleKoreanWrapPrompt(sql, schema, 'ms949');
+    expect(prompt).toContain(sql);
+  });
+
+  it('should instruct LLM to apply UTL_RAW.CAST_TO_RAW', () => {
+    const prompt = buildOracleKoreanWrapPrompt(sql, schema, 'ms949');
+    expect(prompt).toContain('UTL_RAW.CAST_TO_RAW');
+  });
+
+  it('should include schema column info in prompt', () => {
+    const prompt = buildOracleKoreanWrapPrompt(sql, schema, 'ms949');
+    expect(prompt).toContain('customer_name');
+    expect(prompt).toContain('VARCHAR2');
+  });
+
+  it('should instruct to return SQL only', () => {
+    const prompt = buildOracleKoreanWrapPrompt(sql, schema, 'ms949');
+    expect(prompt).toContain('SQL only');
+  });
+
+  it('should include charset info', () => {
+    const prompt = buildOracleKoreanWrapPrompt(sql, schema, 'ms949');
     expect(prompt).toContain('ms949');
   });
 });

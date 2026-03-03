@@ -325,6 +325,56 @@ export function buildPrompt(options: PromptOptions): string {
 }
 
 /**
+ * Oracle 한글 컬럼 UTL_RAW 래핑 변환 프롬프트를 생성합니다.
+ *
+ * @description
+ * 기존 Oracle SQL을 받아서 한글 데이터를 저장하는 VARCHAR2 컬럼에
+ * UTL_RAW.CAST_TO_RAW()를 적용하는 변환 SQL을 생성하도록 LLM에 지시합니다.
+ * execute=true + oracleDataCharset 조합일 때만 호출됩니다.
+ *
+ * @param sql - 변환할 원본 SQL
+ * @param schema - 스키마 정보 (컬럼 타입/코멘트 참조용)
+ * @param charset - Oracle DB 데이터 캐릭터셋 (예: ms949)
+ * @returns LLM 변환 요청 프롬프트
+ */
+export function buildOracleKoreanWrapPrompt(
+  sql: string,
+  schema: SchemaInfo,
+  charset: string
+): string {
+  const columnInfo = schema.tables
+    .map((table) => {
+      const varchar2Cols = table.columns
+        .filter((col) => col.type?.toUpperCase().includes('VARCHAR2'))
+        .map((col) => `  ${col.name} (${col.type})${col.comment ? ` -- ${col.comment}` : ''}`)
+        .join('\n');
+      return varchar2Cols ? `Table ${table.name}:\n${varchar2Cols}` : null;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  return `You are an Oracle SQL expert. The Oracle database stores data in ${charset} charset (not UTF-8).
+VARCHAR2 columns containing Korean text must be wrapped with UTL_RAW.CAST_TO_RAW() to prevent garbled output.
+
+Below is the database schema showing VARCHAR2 columns (which may store Korean text):
+${columnInfo || '(no VARCHAR2 columns found in schema)'}
+
+Original SQL to transform:
+\`\`\`sql
+${sql}
+\`\`\`
+
+Task:
+1. Analyze the SQL and identify VARCHAR2 columns in SELECT list and WHERE conditions that likely store Korean text.
+   - Use column names, comments, and context to judge (e.g., name, address, description columns are likely Korean).
+   - Numeric ID columns, date columns, and clearly non-Korean columns should NOT be wrapped.
+2. In the SELECT list: wrap each Korean VARCHAR2 column as UTL_RAW.CAST_TO_RAW(column_name) AS column_name.
+3. In WHERE conditions: if comparing a Korean VARCHAR2 column against a Korean string literal, wrap appropriately.
+4. Return ONLY the modified SQL query with no explanation, no markdown, no code blocks. SQL only.
+5. If no Korean VARCHAR2 columns are found, return the original SQL unchanged.`;
+}
+
+/**
  * 1st Pass: 테이블 선별용 프롬프트 생성
  * @param tableSummary - 테이블명+코멘트 요약 문자열
  * @param glossaryTerms - 용어집
