@@ -12,6 +12,9 @@ import type {
   TableRelationship,
   QueryPattern,
   PatternKeyword,
+  CodeTable,
+  ColumnCodeMapping,
+  MetadataCache,
 } from '../../src/database/metadata/types.js';
 
 describe('buildTableSelectionPrompt', () => {
@@ -190,9 +193,10 @@ describe('buildPrompt', () => {
   const mockSchema: SchemaInfo = {
     tables: [{
       name: 'customers',
-      schema: 'public',
+      schemaName: 'public',
       comment: '고객',
-      columns: [{ name: 'cust_name', type: 'VARCHAR2(100)', nullable: false, comment: '고객명', isPrimaryKey: false, isForeignKey: false }],
+      columns: [{ name: 'cust_name', type: 'VARCHAR2(100)', nullable: false, comment: '고객명', isPrimaryKey: false, isForeignKey: false, defaultValue: null }],
+      constraints: [],
       indexes: [],
     }],
     recentQueries: [],
@@ -243,8 +247,8 @@ describe('buildPrompt - oracle charset UTL_RAW behavior', () => {
       {
         name: 'customers',
         columns: [
-          { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명' },
-          { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID' },
+          { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명', isPrimaryKey: false, isForeignKey: false, defaultValue: null },
+          { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID', isPrimaryKey: true, isForeignKey: false, defaultValue: null },
         ],
         constraints: [],
         indexes: [],
@@ -274,15 +278,154 @@ describe('buildPrompt - oracle charset UTL_RAW behavior', () => {
   });
 });
 
+describe('buildPrompt with code mappings', () => {
+  const schema: SchemaInfo = {
+    tables: [{
+      name: 'orders',
+      schemaName: 'dbo',
+      columns: [
+        { name: 'STATUS', type: 'VARCHAR2(2)', nullable: true, comment: '상태코드', isPrimaryKey: false, isForeignKey: false, defaultValue: null },
+        { name: 'ORDER_ID', type: 'NUMBER', nullable: false, comment: '주문ID', isPrimaryKey: true, isForeignKey: false, defaultValue: null },
+      ],
+      constraints: [],
+      indexes: [],
+    }],
+    recentQueries: [],
+  };
+
+  const baseMetadata: MetadataCache = {
+    relationships: [],
+    namingConventions: [],
+    codeTables: [{
+      codeTableName: 'STATUS_CODE',
+      tableSchema: 'dbo',
+      tableName: 'COM_CODE',
+      groupCodeColumn: 'GROUP_CD',
+      codeColumn: 'CODE',
+      codeNameColumn: 'CODE_NM',
+    }],
+    columnCodeMappings: [{
+      targetSchema: 'dbo',
+      targetTable: 'orders',
+      targetColumn: 'STATUS',
+      codeTableName: 'STATUS_CODE',
+      groupCode: 'L001',
+      includeInPrompt: true,
+    }],
+    codeAliases: [
+      { codeTableName: 'STATUS_CODE', groupCode: 'L001', codeValue: '01', alias: '신청' },
+      { codeTableName: 'STATUS_CODE', groupCode: 'L001', codeValue: '02', alias: '취소' },
+    ],
+    glossaryTerms: [],
+    glossaryAliases: [],
+    glossaryContexts: [],
+    queryPatterns: [],
+    patternParameters: [],
+    patternKeywords: [],
+    loadedAt: new Date(),
+    databaseType: 'oracle',
+  };
+
+  it('should include Column Code Lookups section when mappings exist', () => {
+    const result = buildPrompt({ tables: schema, naturalLanguageQuery: '주문 현황 조회', dbType: 'oracle', metadata: baseMetadata });
+    expect(result).toContain('Column Code Lookups');
+  });
+
+  it('should include JOIN instruction for mapped column', () => {
+    const result = buildPrompt({ tables: schema, naturalLanguageQuery: '주문 현황 조회', dbType: 'oracle', metadata: baseMetadata });
+    expect(result).toContain('JOIN dbo.COM_CODE');
+    expect(result).toContain("GROUP_CD = 'L001'");
+  });
+
+  it('should include SELECT code name instruction', () => {
+    const result = buildPrompt({ tables: schema, naturalLanguageQuery: '주문 현황 조회', dbType: 'oracle', metadata: baseMetadata });
+    expect(result).toContain('CODE_NM');
+    expect(result).toContain('status_nm');
+  });
+
+  it('should include WHERE hints from codeAliases', () => {
+    const result = buildPrompt({ tables: schema, naturalLanguageQuery: '주문 현황 조회', dbType: 'oracle', metadata: baseMetadata });
+    expect(result).toContain('01=신청');
+    expect(result).toContain('02=취소');
+  });
+
+  it('should skip code mapping with includeInPrompt=false', () => {
+    const metadataExcluded: MetadataCache = {
+      ...baseMetadata,
+      columnCodeMappings: [{ ...baseMetadata.columnCodeMappings[0], includeInPrompt: false }],
+    };
+    const result = buildPrompt({ tables: schema, naturalLanguageQuery: '주문 현황 조회', dbType: 'oracle', metadata: metadataExcluded });
+    expect(result).not.toContain('Column Code Lookups');
+  });
+
+  it('should skip code section when no columnCodeMappings', () => {
+    const metadataEmpty: MetadataCache = {
+      ...baseMetadata,
+      columnCodeMappings: [],
+    };
+    const result = buildPrompt({ tables: schema, naturalLanguageQuery: '주문 현황 조회', dbType: 'oracle', metadata: metadataEmpty });
+    expect(result).not.toContain('Column Code Lookups');
+  });
+});
+
+describe('buildTableSelectionPrompt with code table dependencies', () => {
+  const tableSummary = 'dbo.orders -- 주문\ndbo.COM_CODE -- 공통코드';
+
+  const codeTables: CodeTable[] = [{
+    codeTableName: 'STATUS_CODE',
+    tableSchema: 'dbo',
+    tableName: 'COM_CODE',
+    groupCodeColumn: 'GROUP_CD',
+    codeColumn: 'CODE',
+    codeNameColumn: 'CODE_NM',
+  }];
+
+  const columnCodeMappings: ColumnCodeMapping[] = [{
+    targetSchema: 'dbo',
+    targetTable: 'orders',
+    targetColumn: 'STATUS',
+    codeTableName: 'STATUS_CODE',
+    groupCode: 'L001',
+    includeInPrompt: true,
+  }];
+
+  it('should include code table dependency hint when mappings exist', () => {
+    const result = buildTableSelectionPrompt(
+      tableSummary, [], [], [], [], [], '주문 목록', codeTables, columnCodeMappings
+    );
+    expect(result).toContain('Code Table Dependencies');
+    expect(result).toContain('orders.STATUS');
+    expect(result).toContain('COM_CODE');
+  });
+
+  it('should skip code table dependencies when no mappings provided', () => {
+    const result = buildTableSelectionPrompt(
+      tableSummary, [], [], [], [], [], '주문 목록'
+    );
+    expect(result).not.toContain('Code Table Dependencies');
+  });
+
+  it('should skip mapping with includeInPrompt=false', () => {
+    const excludedMappings: ColumnCodeMapping[] = [{
+      ...columnCodeMappings[0],
+      includeInPrompt: false,
+    }];
+    const result = buildTableSelectionPrompt(
+      tableSummary, [], [], [], [], [], '주문 목록', codeTables, excludedMappings
+    );
+    expect(result).not.toContain('Code Table Dependencies');
+  });
+});
+
 describe('buildOracleKoreanWrapPrompt', () => {
   const schema: SchemaInfo = {
     tables: [
       {
         name: 'customers',
         columns: [
-          { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명' },
-          { name: 'grade', type: 'VARCHAR2(10)', nullable: true, comment: '등급' },
-          { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID' },
+          { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명', isPrimaryKey: false, isForeignKey: false, defaultValue: null },
+          { name: 'grade', type: 'VARCHAR2(10)', nullable: true, comment: '등급', isPrimaryKey: false, isForeignKey: false, defaultValue: null },
+          { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID', isPrimaryKey: true, isForeignKey: false, defaultValue: null },
         ],
         constraints: [],
         indexes: [],

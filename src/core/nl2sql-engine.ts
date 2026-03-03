@@ -269,7 +269,9 @@ export class NL2SQLEngine {
         metadata?.relationships ?? [],
         metadata?.queryPatterns ?? [],
         metadata?.patternKeywords ?? [],
-        naturalLanguageQuery
+        naturalLanguageQuery,
+        metadata?.codeTables ?? [],
+        metadata?.columnCodeMappings ?? []
       );
 
       const selectionResponse = await this.aiClient.selectTables(selectionPrompt);
@@ -428,7 +430,9 @@ export class NL2SQLEngine {
       metadata?.relationships ?? [],
       metadata?.queryPatterns ?? [],
       metadata?.patternKeywords ?? [],
-      naturalLanguageQuery
+      naturalLanguageQuery,
+      metadata?.codeTables ?? [],
+      metadata?.columnCodeMappings ?? []
     );
 
     const selectionResponse = await this.aiClient.selectTables(selectionPrompt);

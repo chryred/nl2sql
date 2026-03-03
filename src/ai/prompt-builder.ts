@@ -32,6 +32,9 @@ import type {
   TableRelationship,
   QueryPattern,
   PatternKeyword,
+  CodeTable,
+  ColumnCodeMapping,
+  CodeAlias,
 } from '../database/metadata/types.js';
 
 /**
@@ -139,6 +142,83 @@ function getQuerySafetyGuidelines(): string {
 - Never generate DELETE or DROP statements without explicit WHERE clause
 - Avoid modifying data unless explicitly requested
 - Use parameterized queries pattern when showing examples with variables`;
+}
+
+/**
+ * 컬럼-코드 매핑 정보를 프롬프트 텍스트로 포맷팅합니다.
+ *
+ * @param codeTables - 코드 테이블 설정 목록
+ * @param columnCodeMappings - 컬럼-코드 매핑 목록
+ * @param codeAliases - 코드 별칭 목록
+ * @returns 코드 조회 프롬프트 텍스트 (매핑 없으면 빈 문자열)
+ * @private
+ */
+function formatCodeMappingsForPrompt(
+  codeTables: CodeTable[],
+  columnCodeMappings: ColumnCodeMapping[],
+  codeAliases: CodeAlias[]
+): string {
+  const activeMappings = columnCodeMappings.filter((m) => m.includeInPrompt);
+  if (activeMappings.length === 0) return '';
+
+  const lines: string[] = [];
+
+  for (const mapping of activeMappings) {
+    const codeTable = codeTables.find((ct) => ct.codeTableName === mapping.codeTableName);
+    if (!codeTable) continue;
+
+    const alias = `c_${mapping.targetColumn.toLowerCase()}`;
+    const tableRef = codeTable.tableSchema
+      ? `${codeTable.tableSchema}.${codeTable.tableName}`
+      : codeTable.tableName;
+    const displayName = mapping.displayName ?? `${mapping.targetColumn.toLowerCase()}_nm`;
+    const schemaPrefix = mapping.targetSchema ? `${mapping.targetSchema}.` : '';
+    const colRef = `${schemaPrefix}${mapping.targetTable}.${mapping.targetColumn}`;
+
+    const joinConditions: string[] = [];
+    if (codeTable.groupCodeColumn && mapping.groupCode) {
+      joinConditions.push(`${alias}.${codeTable.groupCodeColumn} = '${mapping.groupCode}'`);
+    }
+    joinConditions.push(`${alias}.${codeTable.codeColumn} = ${mapping.targetTable}.${mapping.targetColumn}`);
+    if (codeTable.activeFlagColumn && codeTable.activeFlagValue) {
+      joinConditions.push(`${alias}.${codeTable.activeFlagColumn} = '${codeTable.activeFlagValue}'`);
+    }
+    if (codeTable.additionalFilter) {
+      joinConditions.push(codeTable.additionalFilter);
+    }
+
+    lines.push(`  - ${colRef}:`);
+    lines.push(`    JOIN ${tableRef} ${alias} ON ${joinConditions.join(' AND ')}`);
+    lines.push(`    SELECT: ${alias}.${codeTable.codeNameColumn} AS ${displayName}`);
+
+    const relevantAliases = codeAliases.filter(
+      (a) =>
+        a.codeTableName === mapping.codeTableName &&
+        (!mapping.groupCode || !a.groupCode || a.groupCode === mapping.groupCode)
+    );
+    if (relevantAliases.length > 0) {
+      const aliasMap = new Map<string, string[]>();
+      for (const a of relevantAliases) {
+        const existing = aliasMap.get(a.codeValue) ?? [];
+        existing.push(a.alias);
+        aliasMap.set(a.codeValue, existing);
+      }
+      const valueHints = Array.from(aliasMap.entries())
+        .map(([code, aliases]) => `${code}=${aliases.join('/')}`)
+        .join(', ');
+      lines.push(`    WHERE hints: ${valueHints}`);
+    }
+  }
+
+  if (lines.length === 0) return '';
+
+  return [
+    'Column Code Lookups (apply JOINs and SELECT code names for these columns):',
+    lines.join('\n'),
+    'Rules:',
+    '- When a code column appears in SELECT, automatically add the JOIN and include the code name column',
+    '- When user mentions a code value by name, translate using WHERE hints above',
+  ].join('\n');
 }
 
 /**
@@ -256,6 +336,16 @@ function formatMetadataForPrompt(
         `Pattern Keywords (when user mentions these, consider the corresponding pattern):\n${keywordLines.join('\n')}`
       );
     }
+  }
+
+  // 컬럼-코드 매핑 (공통코드 JOIN 지시)
+  const codeMappingSection = formatCodeMappingsForPrompt(
+    metadata.codeTables,
+    metadata.columnCodeMappings,
+    metadata.codeAliases
+  );
+  if (codeMappingSection) {
+    sections.push(codeMappingSection);
   }
 
   return sections.length > 0
@@ -389,7 +479,9 @@ export function buildTableSelectionPrompt(
   relationships: TableRelationship[],
   queryPatterns: QueryPattern[],
   patternKeywords: PatternKeyword[],
-  naturalLanguageQuery: string
+  naturalLanguageQuery: string,
+  codeTables: CodeTable[] = [],
+  columnCodeMappings: ColumnCodeMapping[] = []
 ): string {
   const sections: string[] = [];
 
@@ -455,6 +547,19 @@ export function buildTableSelectionPrompt(
     if (kwLines.length > 0) {
       sections.push(`Pattern Keywords → Table Hints:\n${kwLines.join('\n')}`);
     }
+  }
+
+  // 코드 테이블 의존성 힌트 (선별 시 관련 코드 테이블도 포함하도록)
+  const activeMappings = columnCodeMappings.filter((m) => m.includeInPrompt);
+  if (activeMappings.length > 0) {
+    const depLines = activeMappings.map((m) => {
+      const ct = codeTables.find((c) => c.codeTableName === m.codeTableName);
+      const tableRef = ct
+        ? ct.tableSchema ? `${ct.tableSchema}.${ct.tableName}` : ct.tableName
+        : m.codeTableName;
+      return `  - ${m.targetTable}.${m.targetColumn} → also include: ${tableRef}`;
+    });
+    sections.push(`Code Table Dependencies (include when selecting these columns):\n${depLines.join('\n')}`);
   }
 
   sections.push(`User question: ${naturalLanguageQuery}`);
