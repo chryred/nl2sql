@@ -112,8 +112,8 @@ describe('NL2SQLEngine.wrapOracleKoreanColumns', () => {
         {
           name: 'customers',
           columns: [
-            { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명' },
-            { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID' },
+            { name: 'customer_name', type: 'VARCHAR2(100)', nullable: true, comment: '고객명', defaultValue: null, isPrimaryKey: false, isForeignKey: false },
+            { name: 'id', type: 'NUMBER', nullable: false, comment: 'ID', defaultValue: null, isPrimaryKey: false, isForeignKey: false },
           ],
           constraints: [],
           indexes: [],
@@ -121,7 +121,7 @@ describe('NL2SQLEngine.wrapOracleKoreanColumns', () => {
         {
           name: 'unrelated_table',
           columns: [
-            { name: 'some_col', type: 'VARCHAR2(200)', nullable: true, comment: '무관한 컬럼' },
+            { name: 'some_col', type: 'VARCHAR2(200)', nullable: true, comment: '무관한 컬럼', defaultValue: null, isPrimaryKey: false, isForeignKey: false },
           ],
           constraints: [],
           indexes: [],
@@ -130,7 +130,7 @@ describe('NL2SQLEngine.wrapOracleKoreanColumns', () => {
     };
 
     const mockAiClient = {
-      generateSQL: jest.fn().mockResolvedValue(wrappedSql),
+      generateSQL: jest.fn<(prompt: string) => Promise<string>>().mockResolvedValue(wrappedSql),
       selectTables: jest.fn(),
       generateInferFK: jest.fn(),
       generateComment: jest.fn(),
