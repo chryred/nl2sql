@@ -61,7 +61,6 @@ export interface PromptOptions {
  * AI 모델이 해당 데이터베이스에 맞는 올바른 SQL을 생성할 수 있도록 합니다.
  *
  * @param dbType - 데이터베이스 타입
- * @param oracleDataCharset - Oracle 데이터 캐릭터셋 (한글 처리 힌트용)
  * @returns 데이터베이스별 SQL 가이드 텍스트
  * @private
  */
