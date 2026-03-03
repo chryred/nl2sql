@@ -81,4 +81,27 @@ describe('NL2SQLEngine.wrapOracleKoreanColumns', () => {
     const result = await engine.wrapOracleKoreanColumns(originalSql);
     expect(result).toBe(originalSql);
   });
+
+  it('should return original sql immediately when oracleDataCharset is not set', async () => {
+    const configWithoutCharset = {
+      database: { type: 'oracle' as const },
+      ai: { provider: 'openai' as const, model: 'gpt-4o', openaiApiKey: 'sk-test-key' },
+    } as any;
+
+    const mockAiClient = {
+      generateSQL: jest.fn(),
+      selectTables: jest.fn(),
+      generateInferFK: jest.fn(),
+      generateComment: jest.fn(),
+    };
+
+    const engine = new NL2SQLEngine(mockKnex, configWithoutCharset, {
+      schemaCache: mockSchema,
+    });
+    (engine as any).aiClient = mockAiClient;
+
+    const result = await engine.wrapOracleKoreanColumns(originalSql);
+    expect(result).toBe(originalSql);
+    expect(mockAiClient.generateSQL).not.toHaveBeenCalled();
+  });
 });
