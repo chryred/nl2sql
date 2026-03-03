@@ -1,6 +1,8 @@
 import { DevXSDK } from '@devx/mcp-sdk';
 import type { AIProvider } from './openai.js';
 import { logger } from '../../logger/index.js';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
 export class DevX implements AIProvider {
   private client: DevXSDK;
@@ -44,6 +46,10 @@ export class DevX implements AIProvider {
 
     const textBlock = response.data?.answer;
     logger.info(`generateInferFK response: ${textBlock}`);
+
+    const cwd = process.cwd();
+    const filePath = join(cwd, "fk_generated.md");
+    writeFileSync(filePath, prompt, { encoding: 'utf-8' });
     return textBlock || '[]';
   }
 

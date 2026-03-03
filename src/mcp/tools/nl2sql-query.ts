@@ -26,6 +26,7 @@ import { buildConfigFromEntry } from '../utils/config-helper.js';
 import type { ConnectionManager } from '../../database/connection-manager.js';
 import { saveQueryHistory } from './query-history.js';
 
+
 /**
  * nl2sql_query 도구의 입력 스키마
  */

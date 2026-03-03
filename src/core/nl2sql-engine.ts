@@ -38,6 +38,7 @@ import {
   initializeMetadataCache,
 } from '../database/metadata/index.js';
 import type { MetadataCache } from '../database/metadata/types.js';
+import { extractTablesFromSQL } from '../utils/sql-parser.js';
 
 /** 2-Pass 테이블 선별 임계값. 이 수 이하이면 기존 single-pass 유지 */
 const TABLE_COUNT_THRESHOLD = 30;
@@ -450,9 +451,12 @@ export class NL2SQLEngine {
    * @returns UTL_RAW 적용된 SQL (변환 불필요 시 원본 반환)
    */
   async wrapOracleKoreanColumns(sql: string): Promise<string> {
-    const schema = await this.getSchema();
+
     const charset = this.config.database.oracleDataCharset;
     if (!charset) return sql;
+    
+    const tables = extractTablesFromSQL(sql);
+    const schema = filterSchemaByTables(await this.getSchema(), tables);
 
     const prompt = buildOracleKoreanWrapPrompt(sql, schema, charset);
     try {
