@@ -10,9 +10,11 @@
 - **Output**: Table, JSON, CSV 다양한 출력 형식 지원
 - **CLI**: 간단한 명령어로 SQL 생성 및 실행
 - **Interactive REPL**: 대화형 모드로 연속 쿼리 실행
-- **Metadata Auto-Setup**: 메타데이터 테이블 자동 생성 (CLI/MCP)
+- **Metadata Auto-Setup**: 단일 MCP 도구(`auto_setup`)로 전체 메타데이터 8단계 자동 셋업
 - **Two-Pass Table Selection**: 대규모 스키마(30+ 테이블) 환경에서 1st Pass로 관련 테이블 선별 후 SQL 생성, 토큰 ~82% 절감
-- **MCP Server**: Model Context Protocol 지원 (stdio/SSE), 다중 연결 관리
+- **Query Feedback Learning**: 쿼리 피드백 → AI 분석 → 메타데이터 자동 개선 사이클 (`query_feedback`)
+- **Metadata CRUD Tools**: 용어집·코드테이블·관계·네이밍 컨벤션 개별 관리 MCP 도구 4종
+- **MCP Server**: Model Context Protocol 지원 (stdio/SSE), 다중 연결 관리, 21개 도구
 - **Docker**: 컨테이너 배포 지원
 
 ## Installation
@@ -340,6 +342,12 @@ NL2SQL은 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)을 �
 | `query_history_list`     | 쿼리 실행 이력 조회 (recent/frequent 정렬)                      |
 | `query_history_search`   | 자연어 키워드로 이력 검색                                       |
 | `query_history_register` | 이력 항목 → query_patterns 승격 (북마크화)                      |
+| `auto_setup`             | 메타데이터 전체 자동 셋업 8단계 (preview/apply)                 |
+| `glossary_manage`        | 비즈니스 용어집 CRUD (add/update/deactivate/list)               |
+| `code_table_manage`      | 코드테이블 CRUD (add/activate/deactivate/add_mapping/add_alias/list) |
+| `relationship_manage`    | 테이블 관계 CRUD (add/activate/deactivate/list)                 |
+| `naming_convention_manage` | 네이밍 컨벤션 CRUD (add/update/deactivate/list)               |
+| `query_feedback`         | 쿼리 피드백 → AI 분석 → 메타데이터 자동 개선 (preview/apply)   |
 
 ### stdio 모드 (Claude Desktop 등)
 

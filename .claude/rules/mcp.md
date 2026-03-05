@@ -24,6 +24,12 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 | `query_history_list`     | 쿼리 실행 이력 조회 (`sortBy: recent\|frequent`)         |
 | `query_history_search`   | 자연어 키워드로 쿼리 이력 검색                           |
 | `query_history_register` | 이력 항목을 query_patterns로 승격 (북마크화)             |
+| `auto_setup`             | 메타데이터 전체 자동 셋업 8단계 (fk_extraction~pattern_generation, preview/apply) |
+| `glossary_manage`        | 비즈니스 용어집 CRUD (add/update/deactivate/list), 별칭·컨텍스트 포함 |
+| `code_table_manage`      | 코드테이블 CRUD (add/activate/deactivate/add_mapping/add_alias/list) |
+| `relationship_manage`    | 테이블 관계 CRUD (add/activate/deactivate/list)          |
+| `naming_convention_manage` | 네이밍 컨벤션 CRUD (add/update/deactivate/list)        |
+| `query_feedback`         | 쿼리 피드백 → AI 분석 → 메타데이터 자동 개선 (preview/apply) |
 
 ## Transport Modes
 
@@ -45,6 +51,28 @@ Model Context Protocol 서버로 AI 에이전트(Claude Desktop 등)와 통합.
 - CORS 지원
 
 ## Version History
+
+### v1.12.0
+
+- `auto_setup` MCP 도구 추가 (16단계): 8단계 메타데이터 자동 셋업 오케스트레이터
+  - Stage 1: `fk_extraction` — DB FK 제약조건 추출 → table_relationships 저장
+  - Stage 2: `code_table_detection` — 코드테이블 휴리스틱 탐지 (is_active=FALSE, 수동 검토 필요)
+  - Stage 3: `code_mapping_detection` — FK→코드테이블 매핑 탐지
+  - Stage 4: `naming_convention` — 네이밍 컨벤션 기반 FK 추론
+  - Stage 5: `llm_relationship` — LLM 기반 FK 추론
+  - Stage 6: `glossary_generation` — AI 용어집 자동 생성
+  - Stage 7: `code_alias_generation` — AI 코드값 별칭 자동 생성
+  - Stage 8: `pattern_generation` — AI 쿼리 패턴 자동 생성
+- `glossary_manage` MCP 도구 추가 (17단계): 비즈니스 용어 CRUD
+- `code_table_manage` MCP 도구 추가 (18단계): 코드테이블·매핑·별칭 CRUD
+- `relationship_manage` MCP 도구 추가 (19단계): 테이블 관계 CRUD
+- `naming_convention_manage` MCP 도구 추가 (20단계): 네이밍 컨벤션 CRUD
+- `query_feedback` MCP 도구 추가 (21단계): 쿼리 피드백 학습 시스템
+  - 자연어 피드백 또는 수정 SQL → AI 분석 → 메타데이터 개선 제안
+  - preview: 개선 제안 목록 반환 / apply: 용어집·관계 자동 적용
+- `nl2sql_query` 응답에 `feedbackHint` 필드 추가 (execute=true 시)
+- AI 생성 모듈 추가: `glossary-generator.ts`, `code-alias-generator.ts`, `pattern-generator.ts`
+- MCP 도구 21단계 체계로 확장 (기존 15단계)
 
 ### v1.11.0
 

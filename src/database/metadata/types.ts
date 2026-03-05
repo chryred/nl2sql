@@ -319,14 +319,6 @@ export interface MetadataQueryDefinition {
 }
 
 /**
- * 추론 쿼리 정의 (시스템 스키마 필터링 포함)
- */
-export interface InferenceQueryDefinition extends MetadataQueryDefinition {
-  systemSchemas?: string[];
-  schemaFilterColumn?: string;
-}
-
-/**
  * DDL 테이블 정의
  */
 export interface DdlTableDefinition {
@@ -339,7 +331,6 @@ export interface DdlTableDefinition {
  * DDL 설정
  */
 export interface DdlConfig {
-  createSchema?: string;
   tables: DdlTableDefinition[];
 }
 
@@ -361,8 +352,6 @@ export interface MetadataQueryConfig {
     patternParameters: MetadataQueryDefinition;
     patternKeywords: MetadataQueryDefinition;
     codeValuesTemplate?: MetadataQueryDefinition;
-    inferenceColumns?: InferenceQueryDefinition;
-    inferenceConstraints?: InferenceQueryDefinition;
     inferenceUpsert?: MetadataQueryDefinition;
     queryPatternInsert?: MetadataQueryDefinition;
     queryPatternKeywordInsert?: MetadataQueryDefinition;
@@ -372,6 +361,20 @@ export interface MetadataQueryConfig {
     queryHistoryListFrequent?: MetadataQueryDefinition;
     queryHistorySearch?: MetadataQueryDefinition;
     queryHistoryGetById?: MetadataQueryDefinition;
+    // CRUD 쿼리 (메타데이터 관리 MCP 도구용)
+    glossaryTermUpsert?: MetadataQueryDefinition;
+    glossaryAliasUpsert?: MetadataQueryDefinition;
+    glossaryContextUpsert?: MetadataQueryDefinition;
+    glossaryTermDeactivate?: MetadataQueryDefinition;
+    codeTableUpsert?: MetadataQueryDefinition;
+    columnCodeMappingUpsert?: MetadataQueryDefinition;
+    codeAliasUpsert?: MetadataQueryDefinition;
+    namingConventionUpsert?: MetadataQueryDefinition;
+    relationshipDeactivate?: MetadataQueryDefinition;
+    // auto_setup용 시스템 카탈로그 조회
+    autoImportFKSelect?: MetadataQueryDefinition;
+    autoImportCodeTableSelect?: MetadataQueryDefinition;
+    autoImportCodeMappingSelect?: MetadataQueryDefinition;
   };
   ddl?: DdlConfig;
 }

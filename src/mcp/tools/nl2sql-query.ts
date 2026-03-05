@@ -66,6 +66,8 @@ export interface Nl2sqlQueryOutput {
   results?: unknown[];
   rowCount?: number;
   error?: string;
+  /** 실행 결과가 부정확할 때 피드백 방법 안내 */
+  feedbackHint?: string;
 }
 
 /**
@@ -142,6 +144,8 @@ export async function nl2sqlQuery(
       if (input.execute && executionResult) {
         output.results = executionResult;
         output.rowCount = executionResult.length;
+        output.feedbackHint =
+          '결과가 정확하지 않으면 query_feedback 도구로 피드백을 남겨 메타데이터를 개선할 수 있습니다.';
       }
 
       // 쿼리 이력 자동 저장 (fire-and-forget, 실패해도 메인 흐름 영향 없음)

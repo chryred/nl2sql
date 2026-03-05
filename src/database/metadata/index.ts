@@ -27,7 +27,6 @@ export type {
   PatternKeyword,
   MetadataCache,
   MetadataQueryDefinition,
-  InferenceQueryDefinition,
   MetadataQueryConfig,
   DdlTableDefinition,
   DdlConfig,

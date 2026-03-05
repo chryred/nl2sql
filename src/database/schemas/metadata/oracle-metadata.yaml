@@ -319,46 +319,6 @@ queries:
       isRequired: is_required
 
   # ==========================================================================
-  # 추론용: 사용자 테이블 컬럼 조회
-  # ==========================================================================
-  inferenceColumns:
-    sql: |
-      SELECT c.owner AS table_schema, c.table_name, c.column_name, c.data_type
-      FROM all_tab_columns c
-      JOIN all_tables t
-        ON c.owner = t.owner AND c.table_name = t.table_name
-      WHERE 1=1
-        {{SCHEMA_FILTER}}
-      ORDER BY c.owner, c.table_name, c.column_id
-    mapping:
-      tableSchema: table_schema
-      tableName: table_name
-      columnName: column_name
-      dataType: data_type
-    systemSchemas: [SYS, SYSTEM, DBSNMP, OUTLN, MDSYS, CTXSYS, XDB, WMSYS, APEX_PUBLIC_USER, APEX_040000, FLOWS_FILES, NL2SQL]
-    schemaFilterColumn: c.owner
-
-  # ==========================================================================
-  # 추론용: PK/UK 제약조건 컬럼 조회
-  # ==========================================================================
-  inferenceConstraints:
-    sql: |
-      SELECT c.owner AS table_schema, c.table_name, cc.column_name,
-             CASE WHEN c.constraint_type = 'P' THEN 'PRIMARY KEY' ELSE 'UNIQUE' END AS constraint_type
-      FROM all_constraints c
-      JOIN all_cons_columns cc
-        ON c.owner = cc.owner AND c.constraint_name = cc.constraint_name
-      WHERE c.constraint_type IN ('P', 'U')
-        {{SCHEMA_FILTER}}
-    mapping:
-      tableSchema: table_schema
-      tableName: table_name
-      columnName: column_name
-      constraintType: constraint_type
-    systemSchemas: [SYS, SYSTEM, DBSNMP, OUTLN, MDSYS, CTXSYS, XDB, WMSYS, APEX_PUBLIC_USER, APEX_040000, FLOWS_FILES, NL2SQL]
-    schemaFilterColumn: c.owner
-
-  # ==========================================================================
   # 추론용: 관계 UPSERT (MERGE INTO)
   # Oracle 한글 description은 {{DESCRIPTION_BIND}} 플레이스홀더로 처리
   # ==========================================================================
@@ -503,6 +463,301 @@ queries:
       FROM query_history
       WHERE id = ?
     mapping: {}
+
+  # ==========================================================================
+  # glossary_manage: 용어 UPSERT (MERGE INTO)
+  # ==========================================================================
+  glossaryTermUpsert:
+    sql: |
+      MERGE INTO glossary_terms tgt
+      USING (SELECT ? AS term_code FROM DUAL) src
+      ON (tgt.term_code = src.term_code)
+      WHEN MATCHED THEN UPDATE SET
+        term                = {{BIND_TEXT}},
+        category            = ?,
+        sql_condition        = {{BIND_TEXT}},
+        sql_condition_mysql  = {{BIND_TEXT}},
+        sql_condition_oracle = {{BIND_TEXT}},
+        apply_to_tables     = ?,
+        required_columns    = ?,
+        definition          = {{BIND_TEXT}},
+        example_usage       = {{BIND_TEXT}},
+        priority            = ?,
+        updated_at          = SYSTIMESTAMP,
+        updated_by          = ?
+      WHEN NOT MATCHED THEN INSERT (
+        term_code, term, category, sql_condition,
+        sql_condition_mysql, sql_condition_oracle,
+        apply_to_tables, required_columns,
+        definition, example_usage, priority,
+        is_active, created_by
+      ) VALUES (
+        ?, {{BIND_TEXT}}, ?, {{BIND_TEXT}},
+        {{BIND_TEXT}}, {{BIND_TEXT}},
+        ?, ?,
+        {{BIND_TEXT}}, {{BIND_TEXT}}, ?,
+        1, ?
+      )
+    mapping: {}
+
+  # ==========================================================================
+  # glossary_manage: 용어 별칭 UPSERT (MERGE INTO, NOT MATCHED only)
+  # ==========================================================================
+  glossaryAliasUpsert:
+    sql: |
+      MERGE INTO glossary_aliases tgt
+      USING (SELECT ? AS term_code, {{BIND_TEXT}} AS alias, ? AS locale FROM DUAL) src
+      ON (tgt.term_code = src.term_code AND tgt.alias = src.alias AND tgt.locale = src.locale)
+      WHEN NOT MATCHED THEN INSERT (
+        term_code, alias, locale, match_type, is_active
+      ) VALUES (?, {{BIND_TEXT}}, ?, ?, 1)
+    mapping: {}
+
+  # ==========================================================================
+  # glossary_manage: 용어 컨텍스트 UPSERT (MERGE INTO)
+  # ==========================================================================
+  glossaryContextUpsert:
+    sql: |
+      MERGE INTO glossary_contexts tgt
+      USING (SELECT ? AS term_code, ? AS context_schema, ? AS context_table FROM DUAL) src
+      ON (tgt.term_code = src.term_code AND tgt.context_schema = src.context_schema AND tgt.context_table = src.context_table)
+      WHEN MATCHED THEN UPDATE SET
+        sql_condition       = {{BIND_TEXT}},
+        required_columns    = ?,
+        context_definition  = {{BIND_TEXT}}
+      WHEN NOT MATCHED THEN INSERT (
+        term_code, context_schema, context_table,
+        sql_condition, required_columns, context_definition, is_active
+      ) VALUES (?, ?, ?, {{BIND_TEXT}}, ?, {{BIND_TEXT}}, 1)
+    mapping: {}
+
+  # ==========================================================================
+  # glossary_manage: 용어 비활성화 (soft delete)
+  # ==========================================================================
+  glossaryTermDeactivate:
+    sql: |
+      UPDATE glossary_terms SET is_active = 0, updated_at = SYSTIMESTAMP
+      WHERE term_code = ?
+    mapping: {}
+
+  # ==========================================================================
+  # code_table_manage: 코드테이블 UPSERT (MERGE INTO)
+  # ==========================================================================
+  codeTableUpsert:
+    sql: |
+      MERGE INTO code_tables tgt
+      USING (SELECT ? AS code_table_name FROM DUAL) src
+      ON (tgt.code_table_name = src.code_table_name)
+      WHEN MATCHED THEN UPDATE SET
+        table_schema        = ?,
+        table_name          = ?,
+        group_code_column   = ?,
+        code_column         = ?,
+        code_name_column    = ?,
+        description_column  = ?,
+        sort_order_column   = ?,
+        active_flag_column  = ?,
+        active_flag_value   = ?,
+        is_active           = ?,
+        description         = {{BIND_TEXT}},
+        updated_at          = SYSTIMESTAMP
+      WHEN NOT MATCHED THEN INSERT (
+        code_table_name, table_schema, table_name,
+        group_code_column, code_column, code_name_column,
+        description_column, sort_order_column,
+        active_flag_column, active_flag_value,
+        is_active, description
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {{BIND_TEXT}})
+    mapping: {}
+
+  # ==========================================================================
+  # code_table_manage: 컬럼-코드 매핑 UPSERT (MERGE INTO)
+  # ==========================================================================
+  columnCodeMappingUpsert:
+    sql: |
+      MERGE INTO column_code_mapping tgt
+      USING (SELECT ? AS target_schema, ? AS target_table, ? AS target_column FROM DUAL) src
+      ON (tgt.target_schema = src.target_schema AND tgt.target_table = src.target_table AND tgt.target_column = src.target_column)
+      WHEN MATCHED THEN UPDATE SET
+        code_table_name     = ?,
+        group_code          = ?,
+        display_name        = {{BIND_TEXT}},
+        include_in_prompt   = ?,
+        is_active           = ?,
+        description         = {{BIND_TEXT}},
+        updated_at          = SYSTIMESTAMP
+      WHEN NOT MATCHED THEN INSERT (
+        target_schema, target_table, target_column,
+        code_table_name, group_code, display_name,
+        include_in_prompt, is_active, description
+      ) VALUES (?, ?, ?, ?, ?, {{BIND_TEXT}}, ?, ?, {{BIND_TEXT}})
+    mapping: {}
+
+  # ==========================================================================
+  # code_table_manage: 코드 별칭 UPSERT (MERGE INTO, NOT MATCHED only)
+  # ==========================================================================
+  codeAliasUpsert:
+    sql: |
+      MERGE INTO code_aliases tgt
+      USING (SELECT ? AS code_table_name, ? AS group_code, {{BIND_TEXT}} AS alias, ? AS locale FROM DUAL) src
+      ON (tgt.code_table_name = src.code_table_name AND tgt.group_code = src.group_code AND tgt.alias = src.alias AND tgt.locale = src.locale)
+      WHEN NOT MATCHED THEN INSERT (
+        code_table_name, group_code, code_value,
+        alias, locale, is_active
+      ) VALUES (?, ?, ?, {{BIND_TEXT}}, ?, 1)
+    mapping: {}
+
+  # ==========================================================================
+  # naming_convention_manage: 네이밍 컨벤션 UPSERT (MERGE INTO)
+  # ==========================================================================
+  namingConventionUpsert:
+    sql: |
+      MERGE INTO naming_conventions tgt
+      USING (SELECT ? AS convention_name FROM DUAL) src
+      ON (tgt.convention_name = src.convention_name)
+      WHEN MATCHED THEN UPDATE SET
+        column_pattern        = ?,
+        target_table_pattern  = ?,
+        target_column_pattern = ?,
+        table_prefix_strip    = ?,
+        table_suffix_strip    = ?,
+        apply_pluralization   = ?,
+        priority              = ?,
+        apply_to_schemas      = ?,
+        exclude_tables        = ?,
+        description           = {{BIND_TEXT}},
+        updated_at            = SYSTIMESTAMP
+      WHEN NOT MATCHED THEN INSERT (
+        convention_name, column_pattern, target_table_pattern,
+        target_column_pattern, table_prefix_strip, table_suffix_strip,
+        apply_pluralization, priority, apply_to_schemas,
+        exclude_tables, is_active, description
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, {{BIND_TEXT}})
+    mapping: {}
+
+  # ==========================================================================
+  # relationship_manage: 관계 비활성화
+  # ==========================================================================
+  relationshipDeactivate:
+    sql: |
+      UPDATE table_relationships SET is_active = 0, updated_at = SYSTIMESTAMP
+      WHERE source_schema = ? AND source_table = ? AND source_column = ?
+        AND target_schema = ? AND target_table = ? AND target_column = ?
+    mapping: {}
+
+  # ==========================================================================
+  # auto_setup Stage 1: FK 제약조건 조회 (Oracle 시스템 카탈로그)
+  # ==========================================================================
+  autoImportFKSelect:
+    sql: |
+      SELECT
+        fk.owner AS source_schema,
+        fk_cc.table_name AS source_table,
+        fk_cc.column_name AS source_column,
+        pk.owner AS target_schema,
+        pk_cc.table_name AS target_table,
+        pk_cc.column_name AS target_column,
+        CASE WHEN col.nullable = 'N' THEN 'INNER' ELSE 'LEFT' END AS join_hint,
+        CASE
+          WHEN EXISTS (
+            SELECT 1 FROM all_constraints uc
+            JOIN all_cons_columns ucc ON uc.constraint_name = ucc.constraint_name AND uc.owner = ucc.owner
+            WHERE uc.constraint_type IN ('U', 'P')
+              AND uc.owner = fk.owner
+              AND ucc.table_name = fk_cc.table_name
+              AND ucc.column_name = fk_cc.column_name
+          ) THEN 'ONE_TO_ONE'
+          ELSE 'MANY_TO_ONE'
+        END AS relationship_type
+      FROM all_constraints fk
+      JOIN all_cons_columns fk_cc ON fk.constraint_name = fk_cc.constraint_name AND fk.owner = fk_cc.owner
+      JOIN all_constraints pk ON fk.r_constraint_name = pk.constraint_name AND fk.r_owner = pk.owner
+      JOIN all_cons_columns pk_cc ON pk.constraint_name = pk_cc.constraint_name AND pk.owner = pk_cc.owner
+        AND fk_cc.position = pk_cc.position
+      JOIN all_tab_columns col ON col.owner = fk.owner AND col.table_name = fk_cc.table_name AND col.column_name = fk_cc.column_name
+      WHERE fk.constraint_type = 'R'
+        AND fk.owner NOT IN ('SYS','SYSTEM','XDB','CTXSYS','MDSYS','OLAPSYS','WMSYS','NL2SQL')
+        AND pk.owner NOT IN ('SYS','SYSTEM','XDB','CTXSYS','MDSYS','OLAPSYS','WMSYS','NL2SQL')
+    mapping:
+      sourceSchema: source_schema
+      sourceTable: source_table
+      sourceColumn: source_column
+      targetSchema: target_schema
+      targetTable: target_table
+      targetColumn: target_column
+      joinHint: join_hint
+      relationshipType: relationship_type
+
+  # ==========================================================================
+  # auto_setup Stage 2: 코드테이블 휴리스틱 탐지 (Oracle)
+  # ==========================================================================
+  autoImportCodeTableSelect:
+    sql: |
+      WITH table_stats AS (
+        SELECT owner AS table_schema, table_name, NVL(num_rows, 0) AS estimated_rows
+        FROM all_tables
+        WHERE owner NOT IN ('SYS','SYSTEM','XDB','CTXSYS','MDSYS','OLAPSYS','WMSYS','NL2SQL')
+          AND NVL(num_rows, 0) BETWEEN 1 AND 1000
+      ),
+      column_analysis AS (
+        SELECT ts.table_schema, ts.table_name, ts.estimated_rows,
+          CASE WHEN EXISTS (SELECT 1 FROM all_tab_columns c WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name AND (LOWER(c.column_name) LIKE '%code%' OR LOWER(c.column_name) LIKE '%cd%')) THEN 1 ELSE 0 END AS has_code_col,
+          CASE WHEN EXISTS (SELECT 1 FROM all_tab_columns c WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name AND (LOWER(c.column_name) LIKE '%name%' OR LOWER(c.column_name) LIKE '%nm%' OR LOWER(c.column_name) LIKE '%label%')) THEN 1 ELSE 0 END AS has_name_col,
+          CASE WHEN EXISTS (SELECT 1 FROM all_tab_columns c WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name AND (LOWER(c.column_name) LIKE '%group%' OR LOWER(c.column_name) LIKE '%type%' OR LOWER(c.column_name) LIKE '%category%')) THEN 1 ELSE 0 END AS has_group_col,
+          CASE WHEN EXISTS (SELECT 1 FROM all_tab_columns c WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name AND (LOWER(c.column_name) LIKE '%order%' OR LOWER(c.column_name) LIKE '%seq%' OR LOWER(c.column_name) LIKE '%sort%')) THEN 1 ELSE 0 END AS has_sort_col,
+          CASE WHEN EXISTS (SELECT 1 FROM all_tab_columns c WHERE c.owner = ts.table_schema AND c.table_name = ts.table_name AND (LOWER(c.column_name) LIKE '%active%' OR LOWER(c.column_name) LIKE '%use%' OR LOWER(c.column_name) LIKE '%_yn')) THEN 1 ELSE 0 END AS has_active_col,
+          CASE WHEN REGEXP_LIKE(LOWER(ts.table_name), '(code|cd|common|master|lookup|ref|type|status|category)') THEN 2 ELSE 0 END AS name_score,
+          (SELECT COUNT(*) FROM all_constraints ac JOIN all_cons_columns acc ON ac.constraint_name = acc.constraint_name AND ac.owner = acc.owner WHERE ac.constraint_type = 'R' AND acc.table_name = ts.table_name AND acc.owner = ts.table_schema) AS ref_count
+        FROM table_stats ts
+      ),
+      code_candidates AS (
+        SELECT ca.*,
+          (ca.has_code_col + ca.has_name_col + ca.has_group_col + ca.has_sort_col + ca.has_active_col + ca.name_score + CASE WHEN ca.ref_count >= 2 THEN 2 ELSE 0 END) AS total_score,
+          (SELECT c.column_name FROM all_tab_columns c WHERE c.owner = ca.table_schema AND c.table_name = ca.table_name AND (LOWER(c.column_name) LIKE '%code%' OR LOWER(c.column_name) LIKE '%cd%') AND ROWNUM = 1 ORDER BY c.column_id) AS guessed_code_col,
+          (SELECT c.column_name FROM all_tab_columns c WHERE c.owner = ca.table_schema AND c.table_name = ca.table_name AND (LOWER(c.column_name) LIKE '%name%' OR LOWER(c.column_name) LIKE '%nm%' OR LOWER(c.column_name) LIKE '%label%') AND ROWNUM = 1 ORDER BY c.column_id) AS guessed_name_col,
+          (SELECT c.column_name FROM all_tab_columns c WHERE c.owner = ca.table_schema AND c.table_name = ca.table_name AND (LOWER(c.column_name) LIKE '%group%' OR LOWER(c.column_name) LIKE '%type%' OR LOWER(c.column_name) LIKE '%category%') AND ROWNUM = 1 ORDER BY c.column_id) AS guessed_group_col,
+          (SELECT c.column_name FROM all_tab_columns c WHERE c.owner = ca.table_schema AND c.table_name = ca.table_name AND (LOWER(c.column_name) LIKE '%order%' OR LOWER(c.column_name) LIKE '%seq%' OR LOWER(c.column_name) LIKE '%sort%') AND ROWNUM = 1 ORDER BY c.column_id) AS guessed_sort_col,
+          (SELECT c.column_name FROM all_tab_columns c WHERE c.owner = ca.table_schema AND c.table_name = ca.table_name AND (LOWER(c.column_name) LIKE '%active%' OR LOWER(c.column_name) LIKE '%use%' OR LOWER(c.column_name) LIKE '%_yn') AND ROWNUM = 1 ORDER BY c.column_id) AS guessed_active_col
+        FROM column_analysis ca
+      )
+      SELECT * FROM code_candidates WHERE total_score >= 3
+    mapping:
+      tableSchema: table_schema
+      tableName: table_name
+      estimatedRows: estimated_rows
+      totalScore: total_score
+      guessedCodeCol: guessed_code_col
+      guessedNameCol: guessed_name_col
+      guessedGroupCol: guessed_group_col
+      guessedSortCol: guessed_sort_col
+      guessedActiveCol: guessed_active_col
+
+  # ==========================================================================
+  # auto_setup Stage 3: FK→코드테이블 매핑 탐지
+  # ==========================================================================
+  autoImportCodeMappingSelect:
+    sql: |
+      SELECT
+        tr.source_schema,
+        tr.source_table,
+        tr.source_column,
+        ct.code_table_name
+      FROM table_relationships tr
+      JOIN code_tables ct
+        ON tr.target_schema = ct.table_schema
+        AND tr.target_table = ct.table_name
+      WHERE tr.created_by = 'auto_import'
+        AND NOT EXISTS (
+          SELECT 1 FROM column_code_mapping ccm
+          WHERE ccm.target_schema = tr.source_schema
+            AND ccm.target_table = tr.source_table
+            AND ccm.target_column = tr.source_column
+        )
+    mapping:
+      sourceSchema: source_schema
+      sourceTable: source_table
+      sourceColumn: source_column
+      codeTableName: code_table_name
 
 # ============================================================================
 # DDL: 메타데이터 테이블 자동 생성 (현재 사용자 스키마)
